@@ -10,12 +10,14 @@ on:
       - 'packages/action/**'
       - 'packages/core/**'
       - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/check-dist.yml'
   pull_request:
     paths:
       - 'packages/action/**'
       - 'packages/core/**'
       - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/check-dist.yml'
   workflow_dispatch:
 
