@@ -8,9 +8,10 @@ packages:
 overrides:
   "@ledgerhq/live-dmk-speculos": "link:./stubs/empty"
 
-# Build scripts we allow to run (pnpm 11 refuses unlisted postinstalls).
+# Build scripts (pnpm 11 fails a strict install on any unlisted postinstall).
+# protobufjs's postinstall is skipped on purpose: the Hedera SDKs work without it and
+# every install-time script is one more thing a lockfile can smuggle in.
 # esbuild's postinstall only fetches its platform binary; it backs tsup and the action bundle.
 allowBuilds:
-  bun: set this to true or false
   esbuild: true
-  protobufjs: set this to true or false
+  protobufjs: false
