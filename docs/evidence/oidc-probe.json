@@ -1,0 +1,16 @@
+{
+  "_captured": "2026-09-08T08:21:11Z — .github/workflows/probe.yml, run 34204022296, first attempt, private repository",
+  "_note": "Every claim the witness cross-checks (PROTOCOL §6 check 3) is a string. `environment` exists only because the job declares `environment: production`.",
+  "iss": "https://token.actions.githubusercontent.com",
+  "aud": "klaxon:deadbeef",
+  "environment": "production",
+  "repository": "KaranSinghBisht/klaxon",
+  "repository_id": "1361110463",
+  "run_id": "34204022296",
+  "run_attempt": "1",
+  "event_name": "workflow_dispatch",
+  "sha": "eb7c4404422a8bbbddacde389b53efcfc1043a4e",
+  "workflow_sha": "eb7c4404422a8bbbddacde389b53efcfc1043a4e",
+  "job_workflow_ref": "KaranSinghBisht/klaxon/.github/workflows/probe.yml@refs/heads/main",
+  "jti": "748fd57b-ebdd-48a0-97e9-8b7c51f3b29e"
+}
