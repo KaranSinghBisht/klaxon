@@ -1,0 +1,17 @@
+node_modules/
+dist/
+!packages/action/dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.local
+.DS_Store
+*.log
+# foundry
+packages/contracts/out/
+packages/contracts/cache/
+# never commit these
+*.key
+klaxon-member*.json
+witness-master*
