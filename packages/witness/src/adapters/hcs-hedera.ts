@@ -16,6 +16,12 @@ import type { HcsPort, HcsPublished } from "../ports/index.js";
  * `getRecord()`, not `getReceipt()`: a receipt carries the sequence number but no consensus
  * timestamp (D12), and the consensus timestamp is the thing the whole claim rests on.
  * Chunking is automatic inside `freezeWith()`; a 2 KB envelope is 2–3 chunks.
+ *
+ * `executeAll()`, not `execute()`: the SDK's `execute()` submits every chunk but returns only the
+ * **first** one's response, so a chunked envelope would be reported at the first chunk's
+ * consensus timestamp and sequence number. PROTOCOL §7 fixes the reader's rule as the **last**
+ * chunk's, and `verify` follows it, so reporting the first would put the witness's own answer at
+ * odds with every auditor for any message over 1024 bytes — which a `released` carrying a JWT is.
  */
 export class HederaHcsAdapter implements HcsPort {
   readonly submitKeyDer: string;
@@ -31,12 +37,16 @@ export class HederaHcsAdapter implements HcsPort {
   }
 
   async publish(topicId: string, message: unknown): Promise<HcsPublished> {
-    const response = await new TopicMessageSubmitTransaction()
+    const responses = await new TopicMessageSubmitTransaction()
       .setTopicId(TopicId.fromString(topicId))
       .setMessage(JSON.stringify(message))
       .setMaxChunks(20)
-      .execute(this.client);
-    const record = await response.getRecord(this.client);
+      .executeAll(this.client);
+    const last = responses[responses.length - 1];
+    if (last === undefined) {
+      throw new Error("topic submit returned no transaction response");
+    }
+    const record = await last.getRecord(this.client);
     const seq = record.receipt.topicSequenceNumber;
     if (seq === null) {
       throw new Error("topic submit returned no sequence number");

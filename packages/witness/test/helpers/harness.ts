@@ -121,7 +121,7 @@ export async function createHarness(env: NodeJS.ProcessEnv = {}): Promise<Harnes
   const clock = (): Date => current;
 
   const payment = new FakePaymentPort(clock, config.X402_PRICE_TINYBAR);
-  const hcs = new FakeHcsPort();
+  const hcs = new FakeHcsPort(clock);
   const source = new FakeSourcePort();
   const registry = new FakeRegistryPort();
   const alarm = new FakeAlarmPort();

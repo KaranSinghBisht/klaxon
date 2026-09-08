@@ -18,6 +18,11 @@ export class FakePaymentPort implements PaymentPort {
   /** Seconds subtracted from `now` when reporting the settlement's consensus timestamp. */
   settlementAgeS = 1;
   readonly settlements = new Map<string, { memo: string; payTx: string }>();
+  /**
+   * `pay_tx` → the consensus timestamp check 1 read back, so a test can render the same payment
+   * into the mirror-node shape `verify` consumes without re-deriving the fake's own arithmetic.
+   */
+  readonly onChain = new Map<string, string>();
   private counter = 0;
 
   constructor(
@@ -99,9 +104,11 @@ export class FakePaymentPort implements PaymentPort {
       return { ok: false, infra: false, reason: "payment memo does not equal the commitment hash" };
     }
     const seconds = Math.floor(this.clock().getTime() / 1000) - this.settlementAgeS;
+    const consensusTimestamp = `${seconds}.000000000`;
+    this.onChain.set(payTx, consensusTimestamp);
     return {
       ok: true,
-      consensusTimestamp: `${seconds}.000000000`,
+      consensusTimestamp,
       payerAccount: "0.0.10405046",
       amount: this.priceTinybars,
     };
