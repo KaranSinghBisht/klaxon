@@ -11,4 +11,6 @@ overrides:
 # Build scripts we allow to run (pnpm 11 refuses unlisted postinstalls).
 # esbuild's postinstall only fetches its platform binary; it backs tsup and the action bundle.
 allowBuilds:
+  bun: set this to true or false
   esbuild: true
+  protobufjs: set this to true or false

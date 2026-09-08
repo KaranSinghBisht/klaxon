@@ -1,6 +1,6 @@
+import { registerSecretMaterial } from "../crypto/mask.js";
 import { KlaxonError } from "../errors.js";
 import type { KlaxonMember } from "../schema.js";
-import { registerSecretMaterial } from "../crypto/mask.js";
 import { LKRP_APPLICATION_ID, LKRP_SDK_NAME, TRUSTCHAIN_API_PROD } from "./constants.js";
 
 export interface RestoreOptions {
@@ -29,23 +29,40 @@ const LKRP_SDK_MODULE = "@ledgerhq/ledger-key-ring-protocol";
 
 async function loadSdk(apiBaseUrl: string): Promise<SdkLike> {
   let mod: {
-    getSdk: (isMock: boolean, ctx: { applicationId: number; name: string; apiBaseUrl: string }, withDevice: unknown) => SdkLike;
+    getSdk: (
+      isMock: boolean,
+      ctx: { applicationId: number; name: string; apiBaseUrl: string },
+      withDevice: unknown,
+    ) => SdkLike;
   };
   try {
     mod = await import(LKRP_SDK_MODULE);
   } catch (cause) {
-    throw new KlaxonError("LKRP_RESTORE_FAILED", `cannot load ${LKRP_SDK_MODULE} on this host`, { cause });
+    throw new KlaxonError("LKRP_RESTORE_FAILED", `cannot load ${LKRP_SDK_MODULE} on this host`, {
+      cause,
+    });
   }
-  return mod.getSdk(false, { applicationId: LKRP_APPLICATION_ID, name: LKRP_SDK_NAME, apiBaseUrl }, noDevice);
+  return mod.getSdk(
+    false,
+    { applicationId: LKRP_APPLICATION_ID, name: LKRP_SDK_NAME, apiBaseUrl },
+    noDevice,
+  );
 }
 
 /** Returns the walletSyncEncryptionKey (hex) for this member. Requires network to Ledger's API. */
-export async function restoreWalletSyncKey(member: KlaxonMember, opts: RestoreOptions = {}): Promise<string> {
+export async function restoreWalletSyncKey(
+  member: KlaxonMember,
+  opts: RestoreOptions = {},
+): Promise<string> {
   const sdk = await loadSdk(opts.apiBaseUrl ?? TRUSTCHAIN_API_PROD);
   let tc: { walletSyncEncryptionKey: string };
   try {
     tc = await sdk.restoreTrustchain(
-      { rootId: member.rootId, applicationPath: member.applicationPath, walletSyncEncryptionKey: "" },
+      {
+        rootId: member.rootId,
+        applicationPath: member.applicationPath,
+        walletSyncEncryptionKey: "",
+      },
       { privatekey: member.privatekey, pubkey: member.pubkey },
     );
   } catch (cause) {

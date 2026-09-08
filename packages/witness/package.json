@@ -1,0 +1,21 @@
+{
+  "name": "@klaxon/witness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": { "klaxon-witness": "./dist/main.js" },
+  "scripts": { "build": "tsup src/main.ts --format esm --clean", "dev": "tsx src/main.ts", "start": "node dist/main.js" },
+  "dependencies": {
+    "@klaxon/core": "workspace:*",
+    "@hiero-ledger/sdk": "2.85.0",
+    "@x402/core": "2.25.0",
+    "@x402/hedera": "2.25.0",
+    "fastify": "5.12.3",
+    "jose": "6.2.12",
+    "viem": "2.56.3",
+    "yaml": "2.9.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": { "tsx": "^4.20.0" }
+}

@@ -1,10 +1,20 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { openSecret, sealSecret } from "../src/crypto/aead.js";
-import { generateDataKey, joinShares, otherShare, shareHash, splitKey } from "../src/crypto/datakey.js";
+import {
+  generateDataKey,
+  joinShares,
+  otherShare,
+  shareHash,
+  splitKey,
+} from "../src/crypto/datakey.js";
 import { eciesOpen, eciesSeal } from "../src/crypto/ecies.js";
 import { generateEphemeral, signCommitment, verifyCommitmentSig } from "../src/crypto/ephemeral.js";
-import { assertNotLeaked, clearSecretRegistry, registerSecretMaterial } from "../src/crypto/mask.js";
+import {
+  assertNotLeaked,
+  clearSecretRegistry,
+  registerSecretMaterial,
+} from "../src/crypto/mask.js";
 import { KlaxonError } from "../src/errors.js";
 
 const H = "8f2e".padEnd(64, "a");
@@ -33,7 +43,7 @@ describe("data key split", () => {
 describe("AEAD", () => {
   it("round-trips with matching AAD", () => {
     const dk = generateDataKey();
-    const pt = Buffer.from("0x" + "7f3a".repeat(16));
+    const pt = Buffer.from(`0x${"7f3a".repeat(16)}`);
     const blob = sealSecret(dk, pt, AAD);
     expect(openSecret(dk, blob, AAD)).toEqual(pt);
   });

@@ -1,0 +1,26 @@
+{
+  "name": "@klaxon/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "klaxon": "./dist/bin.js"
+  },
+  "scripts": {
+    "build": "tsup src/bin.ts --format esm --clean",
+    "dev": "tsx src/bin.ts"
+  },
+  "dependencies": {
+    "@klaxon/core": "workspace:*",
+    "@hashgraph/sdk": "2.81.0",
+    "@napi-rs/keyring": "^1.1.0",
+    "commander": "15.0.0",
+    "viem": "2.56.3",
+    "yaml": "2.9.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0"
+  }
+}

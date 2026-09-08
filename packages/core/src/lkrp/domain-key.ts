@@ -14,7 +14,9 @@ const TAG_BYTES = 16;
 export function deriveDomainKey(wsekHex: string, keyName: string): Buffer {
   const ikm = hex.decode(wsekHex);
   assertLength(ikm, 32, "walletSyncEncryptionKey");
-  return Buffer.from(hkdfSync("sha256", ikm, utf8.encode(DOMAIN_KEY_SALT), utf8.encode(keyName), 32));
+  return Buffer.from(
+    hkdfSync("sha256", ikm, utf8.encode(DOMAIN_KEY_SALT), utf8.encode(keyName), 32),
+  );
 }
 
 /** Byte-identical to `wallet-cli ring encrypt --key <keyName>`: iv(12) || ct || tag(16). */
@@ -27,7 +29,8 @@ export function ringEncrypt(wsekHex: string, keyName: string, plaintext: Uint8Ar
 }
 
 export function ringDecrypt(wsekHex: string, keyName: string, blob: Uint8Array): Buffer {
-  if (blob.length < IV_BYTES + TAG_BYTES) throw new KlaxonError("AEAD_TAMPERED", "ring blob too short");
+  if (blob.length < IV_BYTES + TAG_BYTES)
+    throw new KlaxonError("AEAD_TAMPERED", "ring blob too short");
   const key = deriveDomainKey(wsekHex, keyName);
   const iv = blob.subarray(0, IV_BYTES);
   const tag = blob.subarray(blob.length - TAG_BYTES);

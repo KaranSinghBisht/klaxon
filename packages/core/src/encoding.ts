@@ -40,6 +40,9 @@ export function ctEqual(a: Uint8Array, b: Uint8Array): boolean {
 
 export function assertLength(bytes: Uint8Array, expected: number, what: string): void {
   if (bytes.length !== expected) {
-    throw new KlaxonError("KEY_BAD_LENGTH", `${what} must be ${expected} bytes, got ${bytes.length}`);
+    throw new KlaxonError(
+      "KEY_BAD_LENGTH",
+      `${what} must be ${expected} bytes, got ${bytes.length}`,
+    );
   }
 }

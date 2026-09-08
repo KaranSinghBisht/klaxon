@@ -20,7 +20,11 @@ async function walletCliDeriveDomainKey(wsekHex: string, keyName: string): Promi
   return new Uint8Array(bits);
 }
 
-async function walletCliRingDecrypt(wsekHex: string, keyName: string, blob: Uint8Array): Promise<Uint8Array> {
+async function walletCliRingDecrypt(
+  wsekHex: string,
+  keyName: string,
+  blob: Uint8Array,
+): Promise<Uint8Array> {
   const raw = await walletCliDeriveDomainKey(wsekHex, keyName);
   const key = await webcrypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["decrypt"]);
   const iv = blob.subarray(0, 12);
@@ -28,7 +32,11 @@ async function walletCliRingDecrypt(wsekHex: string, keyName: string, blob: Uint
   return new Uint8Array(await webcrypto.subtle.decrypt({ name: "AES-GCM", iv }, key, body));
 }
 
-async function walletCliRingEncrypt(wsekHex: string, keyName: string, pt: Uint8Array): Promise<Uint8Array> {
+async function walletCliRingEncrypt(
+  wsekHex: string,
+  keyName: string,
+  pt: Uint8Array,
+): Promise<Uint8Array> {
   const raw = await walletCliDeriveDomainKey(wsekHex, keyName);
   const key = await webcrypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt"]);
   const iv = randomBytes(12);
@@ -41,7 +49,9 @@ describe("wallet-cli domain key compatibility", () => {
   const name = shareAKeyName("0".repeat(64), "DEPLOYER_PRIVATE_KEY", "3");
 
   it("hkdfSync matches WebCrypto deriveBits byte-for-byte", async () => {
-    expect(deriveDomainKey(wsek, name)).toEqual(Buffer.from(await walletCliDeriveDomainKey(wsek, name)));
+    expect(deriveDomainKey(wsek, name)).toEqual(
+      Buffer.from(await walletCliDeriveDomainKey(wsek, name)),
+    );
   });
 
   it("golden vector is stable (regression lock)", () => {
@@ -65,9 +75,11 @@ describe("wallet-cli domain key compatibility", () => {
 
   it("a different key name or generation cannot open the blob", () => {
     const blob = ringEncrypt(wsek, name, randomBytes(32));
-    expect(() => ringDecrypt(wsek, shareAKeyName("0".repeat(64), "DEPLOYER_PRIVATE_KEY", "4"), blob)).toThrow(
+    expect(() =>
+      ringDecrypt(wsek, shareAKeyName("0".repeat(64), "DEPLOYER_PRIVATE_KEY", "4"), blob),
+    ).toThrow(/authentication/);
+    expect(() => ringDecrypt(randomBytes(32).toString("hex"), name, blob)).toThrow(
       /authentication/,
     );
-    expect(() => ringDecrypt(randomBytes(32).toString("hex"), name, blob)).toThrow(/authentication/);
   });
 });

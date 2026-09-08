@@ -57,7 +57,11 @@ describe(".enc file", () => {
       projectId: PID,
       secret: "DEPLOYER_PRIVATE_KEY",
       gen: "3",
-      ct: sealSecret(dk, Buffer.from("0xdead"), { project_id: PID, secret: "DEPLOYER_PRIVATE_KEY", gen: "3" }),
+      ct: sealSecret(dk, Buffer.from("0xdead"), {
+        project_id: PID,
+        secret: "DEPLOYER_PRIVATE_KEY",
+        gen: "3",
+      }),
       aCt: randomBytes(60),
       bHash: shareHash(b),
     });

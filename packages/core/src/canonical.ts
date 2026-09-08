@@ -22,7 +22,8 @@ function serialize(v: unknown): string {
       return v ? "true" : "false";
     case "string":
       // RFC 8785 §3.2.2.2: a lone surrogate is not valid Unicode and cannot be canonicalized.
-      if (LONE_SURROGATE.test(v)) throw new KlaxonError("CANON_UNSUPPORTED", "lone surrogate in string");
+      if (LONE_SURROGATE.test(v))
+        throw new KlaxonError("CANON_UNSUPPORTED", "lone surrogate in string");
       return JSON.stringify(v);
     case "number":
       if (!Number.isFinite(v)) throw new KlaxonError("CANON_NON_FINITE", "non-finite number");

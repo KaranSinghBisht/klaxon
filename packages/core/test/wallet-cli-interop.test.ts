@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { ringDecrypt, ringEncrypt } from "../src/lkrp/domain-key.js";
 

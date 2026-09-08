@@ -1,0 +1,19 @@
+{
+  "name": "@klaxon/action",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/index.js && esbuild src/post.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/post.js",
+    "check-dist": "pnpm build && git diff --exit-code -- dist/"
+  },
+  "dependencies": {
+    "@actions/core": "3.0.1",
+    "@klaxon/core": "workspace:*",
+    "@x402/core": "2.25.0",
+    "@x402/fetch": "2.25.0",
+    "@x402/hedera": "2.25.0"
+  },
+  "devDependencies": { "esbuild": "^0.27.0" }
+}

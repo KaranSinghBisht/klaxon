@@ -1,4 +1,10 @@
-import { createCipheriv, createDecipheriv, diffieHellman, generateKeyPairSync, hkdfSync } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  diffieHellman,
+  generateKeyPairSync,
+  hkdfSync,
+} from "node:crypto";
 import { b64u, utf8 } from "../encoding.js";
 import { KlaxonError } from "../errors.js";
 import type { EciesEnvelope } from "../schema.js";
@@ -18,7 +24,8 @@ import { type EphemeralKeyPair, importRawPublic, rawPublicKey } from "./ephemera
 const INFO_PREFIX = "klaxon/ecies/v1|";
 
 function assertH(hHex: string): void {
-  if (!/^[0-9a-f]{64}$/.test(hHex)) throw new KlaxonError("ECIES_BAD_ENVELOPE", "h must be 64 hex chars");
+  if (!/^[0-9a-f]{64}$/.test(hHex))
+    throw new KlaxonError("ECIES_BAD_ENVELOPE", "h must be 64 hex chars");
 }
 
 function deriveKeyIv(ss: Uint8Array, salt: Uint8Array, hHex: string): { key: Buffer; iv: Buffer } {
@@ -27,7 +34,11 @@ function deriveKeyIv(ss: Uint8Array, salt: Uint8Array, hHex: string): { key: Buf
 }
 
 /** Witness side: encrypt share B to the runner's ephemeral X25519 key, bound to h. */
-export function eciesSeal(recipientEncPubB64u: string, hHex: string, message: Uint8Array): EciesEnvelope {
+export function eciesSeal(
+  recipientEncPubB64u: string,
+  hHex: string,
+  message: Uint8Array,
+): EciesEnvelope {
   assertH(hHex);
   const rPub = importRawPublic("x25519", b64u.decode(recipientEncPubB64u));
   const e = generateKeyPairSync("x25519");
@@ -38,7 +49,12 @@ export function eciesSeal(recipientEncPubB64u: string, hHex: string, message: Ui
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   cipher.setAAD(utf8.encode(hHex));
   const ct = Buffer.concat([cipher.update(message), cipher.final()]);
-  return { v: 1, epk: b64u.encode(ePubRaw), ct: b64u.encode(ct), tag: b64u.encode(cipher.getAuthTag()) };
+  return {
+    v: 1,
+    epk: b64u.encode(ePubRaw),
+    ct: b64u.encode(ct),
+    tag: b64u.encode(cipher.getAuthTag()),
+  };
 }
 
 /** Runner side: open with the ephemeral X25519 private key. Wrong h or wrong key → throws. */

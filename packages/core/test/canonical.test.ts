@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import canonicalizeNpm from "canonicalize";
+import { describe, expect, it } from "vitest";
 import { canonicalize, digestHex } from "../src/canonical.js";
 import { KlaxonError } from "../src/errors.js";
 
@@ -21,7 +21,7 @@ describe("canonicalize (RFC 8785)", () => {
   });
 
   it("orders keys by UTF-16 code units, not locale", () => {
-    const obj = { ä: 1, Z: 2, a: 3, "\u{1F600}": 4, "ﬁ": 5 };
+    const obj = { ä: 1, Z: 2, a: 3, "\u{1F600}": 4, ﬁ: 5 };
     expect(canonicalize(obj)).toBe(canonicalizeNpm(obj));
   });
 
@@ -44,9 +44,12 @@ describe("canonicalize (RFC 8785)", () => {
       return (seed >>> 0) / 0xffffffff;
     };
     // Iterate code points, not UTF-16 units, so the generator never emits a lone surrogate.
-    const alphabet = Array.from("abcXYZ_-.0123456789 \"\\é中\u{1F600}");
+    const alphabet = Array.from('abcXYZ_-.0123456789 "\\é中\u{1F600}');
     const str = () =>
-      Array.from({ length: Math.floor(rnd() * 12) }, () => alphabet[Math.floor(rnd() * alphabet.length)]).join("");
+      Array.from(
+        { length: Math.floor(rnd() * 12) },
+        () => alphabet[Math.floor(rnd() * alphabet.length)],
+      ).join("");
     const value = (depth: number): unknown => {
       const r = rnd();
       if (depth > 3 || r < 0.35) return str();

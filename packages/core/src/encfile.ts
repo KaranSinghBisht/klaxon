@@ -37,7 +37,10 @@ export function buildEncFile(a: BuildEncFileArgs): EncFile {
 export function parseEncFile(json: unknown): EncFile {
   const parsed = EncFileSchema.safeParse(json);
   if (!parsed.success) {
-    throw new KlaxonError("ENC_MALFORMED", `.enc failed validation: ${parsed.error.issues[0]?.message ?? "unknown"}`);
+    throw new KlaxonError(
+      "ENC_MALFORMED",
+      `.enc failed validation: ${parsed.error.issues[0]?.message ?? "unknown"}`,
+    );
   }
   const f = parsed.data;
   if (f.a_key_name !== shareAKeyName(f.project_id, f.secret, f.gen)) {

@@ -1,5 +1,5 @@
-import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import type { KeyObject } from "node:crypto";
+import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { assertLength, b64u, utf8 } from "../encoding.js";
 import { KlaxonError } from "../errors.js";
 import type { EphemeralPub } from "../schema.js";
