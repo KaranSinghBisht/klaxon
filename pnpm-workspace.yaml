@@ -1,7 +1,7 @@
 packages:
   - packages/*
   - demo/collector
-  - demo/worm
+  # demo/worm is deliberately NOT a workspace package: its postinstall is the attack.
 
 # @ledgerhq/ledger-key-ring-protocol -> @ledgerhq/speculos-transport -> @ledgerhq/live-dmk-speculos,
 # which is not published to npm. It is a device-emulator transport, unused by restoreTrustchain.

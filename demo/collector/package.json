@@ -1,0 +1,15 @@
+{
+  "name": "@klaxon-demo/collector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Demo exfiltration sink: prints every environment variable the worm posts, in giant type.",
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "fastify": "5.12.3",
+    "zod": "4.5.4"
+  }
+}
