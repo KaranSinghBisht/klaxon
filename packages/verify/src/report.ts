@@ -42,6 +42,7 @@ export interface VerifyReport {
     payments_found: number;
     released: number;
     refused: number;
+    emergency: number;
     withheld: number;
     pending: number;
     double_releases: number;
@@ -69,8 +70,16 @@ export interface VerifyReport {
   unverified: number;
 }
 
-function tally(items: readonly AttemptCheck[], pass: (a: AttemptCheck) => boolean): Tally {
-  return { passed: items.filter(pass).length, total: items.length };
+/** `null` from `pass` means the row does not apply, so the attempt leaves the denominator. */
+function tally(items: readonly AttemptCheck[], pass: (a: AttemptCheck) => boolean | null): Tally {
+  const applicable = items.filter((a) => pass(a) !== null);
+  return { passed: applicable.filter((a) => pass(a) === true).length, total: applicable.length };
+}
+
+/** True when every *applicable* sub-check passed; null only when none of them apply. */
+function and(...values: (boolean | null)[]): boolean | null {
+  const applicable = values.filter((v) => v !== null);
+  return applicable.length === 0 ? null : applicable.every(Boolean);
 }
 
 export function buildReport(input: ReportInputs): VerifyReport {
@@ -109,9 +118,10 @@ export function buildReport(input: ReportInputs): VerifyReport {
       payments_found: input.pairs.length,
       released: input.pairs.reduce((n, p) => n + p.released.length, 0),
       refused: input.pairs.reduce((n, p) => n + p.refused.length, 0),
+      emergency: input.pairs.reduce((n, p) => n + p.emergency.length, 0),
       withheld: input.pairs.filter((p) => p.withheld).length,
       pending: input.pairs.filter((p) => p.pending).length,
-      double_releases: input.pairs.filter((p) => p.released.length > 1).length,
+      double_releases: input.pairs.filter((p) => p.released.length + p.emergency.length > 1).length,
       incomplete_messages: input.incomplete,
       orphan_messages: input.orphans,
     },
@@ -120,8 +130,8 @@ export function buildReport(input: ReportInputs): VerifyReport {
       jwts_live: attempts.filter((a) => a.jwt.ok && a.jwt.source === "live").length,
       jwts_via_snapshot: attempts.filter((a) => a.jwt.ok && a.jwt.source === "snapshot").length,
       snapshot_timestamps: snapshotTimestamps,
-      aud_binds: tally(attempts, (a) => a.audBinds && a.claimsMatch),
-      h_recomputed: tally(attempts, (a) => a.hRecomputed && a.sigValid),
+      aud_binds: tally(attempts, (a) => and(a.audBinds, a.claimsMatch)),
+      h_recomputed: tally(attempts, (a) => and(a.hRecomputed, a.sigValid)),
       policy_matched: tally(releasedChecks, (a) => a.policy.state === "matched"),
       env_secret: tally(releasedChecks, (a) => a.envSecret.state === "ok"),
       policy_versions: input.policyVersions,
@@ -164,6 +174,7 @@ export function renderHuman(report: VerifyReport): string {
   lines.push(row("payments found", String(c.payments_found)));
   lines.push(row("released", String(c.released)));
   lines.push(row("refused", String(c.refused)));
+  lines.push(row("emergency", String(c.emergency)));
   lines.push(
     row(
       "withheld",

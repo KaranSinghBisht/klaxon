@@ -111,6 +111,18 @@ export const JwksBodySchema = z.looseObject({
   keys: z.array(z.record(z.string(), z.unknown())).min(1),
 });
 
+/**
+ * PROTOCOL §7 — break-glass recovery from the operator's laptop, the second member of the
+ * topic's 1-of-2 submit KeyList. `pay_tx` is optional because `klaxon emergency --no-pay`
+ * exists; without it the recovery has no on-chain record and cannot be paired.
+ */
+export const EmergencyBodySchema = z.looseObject({
+  h: z.string().regex(HEX64),
+  secret: z.string().regex(SECRET_NAME),
+  gen: z.string().regex(DIGITS),
+  pay_tx: z.string().min(1).optional(),
+});
+
 export const RotateBodySchema = z.looseObject({
   secret: z.string().regex(SECRET_NAME),
   from_gen: z.string().regex(DIGITS),

@@ -48,11 +48,12 @@ export function verifyCommitmentSig(sigPubB64u: string, h: string, sigB64u: stri
   }
 }
 
-export type PolicyState = "matched" | "mismatch" | "unverifiable";
-export type EnvSecretState = "ok" | "fail" | "unknown";
+/** `n/a` is the emergency path: no OIDC token and no policy to bind it to. */
+export type PolicyState = "matched" | "mismatch" | "unverifiable" | "n/a";
+export type EnvSecretState = "ok" | "fail" | "unknown" | "n/a";
 
 export interface AttemptCheck {
-  type: "released" | "refused";
+  type: "released" | "refused" | "emergency";
   h: string;
   payTx: string;
   paymentConsensus: string;
@@ -63,10 +64,11 @@ export interface AttemptCheck {
   environment: string | null;
   commitmentValid: boolean;
   hRecomputed: boolean;
-  sigValid: boolean;
-  audBinds: boolean;
-  claimsMatch: boolean;
-  jwt: { ok: boolean; source?: JwtSource; snapshotTimestamp?: string; reason?: string };
+  /** `null` where the row does not apply — an `emergency` carries no sig, token or policy. */
+  sigValid: boolean | null;
+  audBinds: boolean | null;
+  claimsMatch: boolean | null;
+  jwt: { ok: boolean | null; source?: JwtSource; snapshotTimestamp?: string; reason?: string };
   policy: { state: PolicyState; expected?: string; actual?: string; reason?: string };
   envSecret: { state: EnvSecretState; reason?: string };
   refusal?: { class: string; check: number; reason: string };
@@ -101,10 +103,54 @@ function claimString(claims: JWTPayload | null, name: string): string | null {
 /**
  * A `refused` message documents a request the witness rejected, so a failing check on one is
  * evidence about the *requester*, not about the witness. It is reported and never counted as a
- * protocol violation — only `released` puts the witness on the hook.
+ * protocol violation — only `released` and `emergency` put the publisher on the hook.
  */
-function severityFor(type: "released" | "refused"): { severity?: "unverified" } {
+function severityFor(type: AttemptRecord["type"]): { severity?: "unverified" } {
   return type === "refused" ? { severity: "unverified" } : {};
+}
+
+/**
+ * PROTOCOL §7 — the operator's break-glass recovery. It commits to its own canonical object
+ * and pays with that hash as the memo, so `h` is still re-derivable from public data; there is
+ * simply no OIDC token, no ephemeral signature and no policy to bind it to.
+ */
+function checkEmergency(
+  attempt: AttemptRecord,
+  paymentConsensus: string,
+  paymentMemo: string,
+): AttemptCheck {
+  const findings: Finding[] = [];
+  const recomputed = commitmentHash(attempt.commitment);
+  const hRecomputed = recomputed === attempt.h && attempt.h === paymentMemo;
+  if (!hRecomputed) {
+    findings.push(
+      finding(
+        "H_MISMATCH",
+        `sha256(JCS(emergency commitment)) = ${recomputed}, message says ${attempt.h}, payment memo says ${paymentMemo}`,
+        { h: attempt.h, pay_tx: attempt.payTx, at: attempt.consensusTimestamp },
+      ),
+    );
+  }
+  return {
+    type: "emergency",
+    h: attempt.h,
+    payTx: attempt.payTx,
+    paymentConsensus,
+    messageConsensus: attempt.consensusTimestamp,
+    projectId: attempt.projectId,
+    secret: attempt.emergency?.secret ?? null,
+    gen: attempt.emergency?.gen ?? null,
+    environment: null,
+    commitmentValid: true,
+    hRecomputed,
+    sigValid: null,
+    audBinds: null,
+    claimsMatch: null,
+    jwt: { ok: null },
+    policy: { state: "n/a", reason: "emergency recovery carries no policy binding" },
+    envSecret: { state: "n/a" },
+    findings,
+  };
 }
 
 async function checkAttempt(
@@ -113,6 +159,9 @@ async function checkAttempt(
   paymentMemo: string,
   ctx: ChecksContext,
 ): Promise<AttemptCheck> {
+  if (attempt.type === "emergency") {
+    return checkEmergency(attempt, paymentConsensus, paymentMemo);
+  }
   const findings: Finding[] = [];
   const where = { h: attempt.h, pay_tx: attempt.payTx, at: attempt.consensusTimestamp };
   const soft = severityFor(attempt.type);
@@ -337,7 +386,7 @@ export async function runChecks(
   const limits = new Map<string, number>();
 
   for (const pair of pairs) {
-    for (const attempt of [...pair.released, ...pair.refused]) {
+    for (const attempt of [...pair.released, ...pair.emergency, ...pair.refused]) {
       const checked = await checkAttempt(
         attempt,
         pair.payment.consensusTimestamp,

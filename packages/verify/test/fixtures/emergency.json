@@ -1,0 +1,79 @@
+{
+  "note": "PROTOCOL §7 break-glass: one recovery paid for and published, one paid for and never published.",
+  "messages": [
+    {
+      "chunk_info": null,
+      "consensus_timestamp": "1789000009.120000000",
+      "message": "eyJrbGF4b24iOjEsInR5cGUiOiJlbWVyZ2VuY3kiLCJ0cyI6IjIwMjYtMDktMTJUMDQ6MTE6MDcuMDAwWiIsInByb2plY3RfaWQiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwiaCI6IjBkMTkyYjJkODAxNmMxNjZhZGJjMzkyYjBkMDc2MTViMGIyYTk5MTlmNjE2MGQwMzI5MTViYTIwZDQ3NGRkNGQiLCJzZWNyZXQiOiJERVBMT1lFUl9QUklWQVRFX0tFWSIsImdlbiI6IjMiLCJwYXlfdHgiOiIwLjAuNTU1MTIxMi0xNzg5MDAwMDAwLTAwMDAwMDAwMSJ9",
+      "payer_account_id": "0.0.5551212",
+      "running_hash": "0x00",
+      "running_hash_version": 3,
+      "sequence_number": 41,
+      "topic_id": "0.0.4321"
+    }
+  ],
+  "transactions": [
+    {
+      "charged_tx_fee": 246668,
+      "consensus_timestamp": "1789000005.000000000",
+      "memo_base64": "MGQxOTJiMmQ4MDE2YzE2NmFkYmMzOTJiMGQwNzYxNWIwYjJhOTkxOWY2MTYwZDAzMjkxNWJhMjBkNDc0ZGQ0ZA==",
+      "name": "CRYPTOTRANSFER",
+      "result": "SUCCESS",
+      "transaction_id": "0.0.5551212-1789000000-000000001",
+      "transfers": [
+        {
+          "account": "0.0.802",
+          "amount": 246668,
+          "is_approval": false
+        },
+        {
+          "account": "0.0.5551212",
+          "amount": -100000,
+          "is_approval": false
+        },
+        {
+          "account": "0.0.4820",
+          "amount": 100000,
+          "is_approval": false
+        }
+      ]
+    },
+    {
+      "charged_tx_fee": 246668,
+      "consensus_timestamp": "1789000605.000000000",
+      "memo_base64": "NDBjYzNmNjI4ZWY1NmUyMjBlNzM1M2I4MjhlNDY3Zjg0MmZkOTc2ZDg0Mjk1YTVjMjc1YmIyOWI3MTk1YzMzMw==",
+      "name": "CRYPTOTRANSFER",
+      "result": "SUCCESS",
+      "transaction_id": "0.0.5551212-1789000600-000000002",
+      "transfers": [
+        {
+          "account": "0.0.802",
+          "amount": 246668,
+          "is_approval": false
+        },
+        {
+          "account": "0.0.5551212",
+          "amount": -100000,
+          "is_approval": false
+        },
+        {
+          "account": "0.0.4820",
+          "amount": 100000,
+          "is_approval": false
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "paired": {
+      "h": "0d192b2d8016c166adbc392b0d07615b0b2a9919f6160d032915ba20d474dd4d",
+      "pay_tx": "0.0.5551212-1789000000-000000001",
+      "secret": "DEPLOYER_PRIVATE_KEY",
+      "gen": "3"
+    },
+    "withheld": {
+      "h": "40cc3f628ef56e220e7353b828e467f842fd976d84295a5c275bb29b7195c333",
+      "pay_tx": "0.0.5551212-1789000600-000000002"
+    }
+  }
+}

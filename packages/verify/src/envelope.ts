@@ -2,6 +2,7 @@ import { type Finding, finding } from "./errors.js";
 import { txIdKey } from "./mirror/payments.js";
 import type { TopicMessage } from "./mirror/topic.js";
 import {
+  EmergencyBodySchema,
   EnvelopeSchema,
   type EnvelopeType,
   JwksBodySchema,
@@ -20,17 +21,24 @@ interface Anchored {
   declaredTs: string;
 }
 
-/** A `released` or `refused` message: one witness answer to one paid request. */
+/**
+ * One answer to one paid request: a `released` or `refused` from the witness, or an
+ * `emergency` from the operator's laptop (PROTOCOL §7). All three are paid for with a memo
+ * equal to `h`, so all three pair against a payment the same way.
+ */
 export interface AttemptRecord extends Anchored {
-  type: "released" | "refused";
+  type: "released" | "refused" | "emergency";
   h: string;
-  /** The commitment exactly as it appeared on the topic — `h` is recomputed from this. */
+  /** The commitment `h` is recomputed from: `C` verbatim, or the reconstructed emergency object. */
   commitment: unknown;
+  /** Empty for `emergency`, which carries no OIDC token and no ephemeral signature. */
   jwt: string;
   sig: string;
   payTx: string;
   payTxKey: string;
   refusal?: { class: string; check: number; reason: string };
+  /** `emergency` only: what the operator opened. */
+  emergency?: { secret: string; gen: string };
 }
 
 export interface RevokeRecord extends Anchored {
@@ -206,6 +214,38 @@ export function parseEnvelopes(messages: readonly TopicMessage[]): ParsedTopic {
           secret: rotate.data.secret,
           fromGen: rotate.data.from_gen,
           toGen: rotate.data.to_gen,
+        });
+        break;
+      }
+      case "emergency": {
+        const rescue = EmergencyBodySchema.safeParse(body);
+        if (!rescue.success) {
+          out.findings.push(
+            finding("MESSAGE_MALFORMED", "emergency message missing h/secret/gen", {
+              at: message.consensusTimestamp,
+            }),
+          );
+          continue;
+        }
+        const payTx = rescue.data.pay_tx ?? "";
+        out.attempts.push({
+          ...base,
+          type: "emergency",
+          h: rescue.data.h,
+          // Rebuilt from the message's own fields, exactly as `klaxon emergency` committed it.
+          commitment: {
+            v: 1,
+            type: "emergency",
+            project_id: envelope.data.project_id,
+            secret: rescue.data.secret,
+            gen: rescue.data.gen,
+            ts: envelope.data.ts,
+          },
+          jwt: "",
+          sig: "",
+          payTx,
+          payTxKey: payTx === "" ? "" : txIdKey(payTx),
+          emergency: { secret: rescue.data.secret, gen: rescue.data.gen },
         });
         break;
       }

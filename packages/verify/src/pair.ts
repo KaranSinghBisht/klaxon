@@ -10,6 +10,8 @@ export interface Pairing {
   payment: Payment;
   released: AttemptRecord[];
   refused: AttemptRecord[];
+  /** Operator break-glass recoveries (PROTOCOL §7): paired exactly like a `released`. */
+  emergency: AttemptRecord[];
   /** True while the payment is still inside the grace window and silence is not yet a verdict. */
   pending: boolean;
   withheld: boolean;
@@ -30,9 +32,11 @@ export interface PairOptions {
 
 /**
  * PROTOCOL §9. Pairing is by `pay_tx`, not by `h`: a payment is the thing the runner can prove
- * it made, so it is the thing the witness must be made to answer for. Exactly one `released`
- * per payment; any number of `refused` (a client may legitimately retry after an `auth` refusal
- * on the same settled payment, A §6.3); silence past the grace window is the headline finding.
+ * it made, so it is the thing the witness must be made to answer for. Exactly one release per
+ * payment — a `released` from the witness or an `emergency` from the operator's laptop, never
+ * two of either; any number of `refused` (a client may legitimately retry after an `auth`
+ * refusal on the same settled payment, A §6.3); silence past the grace window is the headline
+ * finding.
  */
 export function pairPayments(
   payments: readonly Payment[],
@@ -59,6 +63,9 @@ export function pairPayments(
     const matched = byPayment.get(key) ?? [];
     const released = matched.filter((m) => m.type === "released");
     const refused = matched.filter((m) => m.type === "refused");
+    const emergency = matched.filter((m) => m.type === "emergency");
+    // A break-glass recovery answers its payment as fully as a release does.
+    const answers = [...released, ...emergency];
     const paymentTs = parseTs(payment.consensusTimestamp);
     const pending = matched.length === 0 && cmpTs(now, addSeconds(paymentTs, grace)) < 0;
     const withheld = matched.length === 0 && !pending;
@@ -67,17 +74,17 @@ export function pairPayments(
       findings.push(
         finding(
           "WITNESS_WITHHELD",
-          `payment settled with memo ${payment.memo} and the witness published nothing within ${grace}s`,
+          `payment settled with memo ${payment.memo} and nothing was published on the topic within ${grace}s`,
           { h: payment.memo, pay_tx: payment.transactionId, at: payment.consensusTimestamp },
         ),
       );
     }
-    if (released.length > 1) {
+    if (answers.length > 1) {
       findings.push(
         finding(
           "DOUBLE_RELEASE",
-          `${released.length} released messages for one payment (${released
-            .map((r) => r.h)
+          `${answers.length} release messages for one payment (${answers
+            .map((r) => `${r.type} ${r.h}`)
             .join(", ")})`,
           { h: payment.memo, pay_tx: payment.transactionId, at: payment.consensusTimestamp },
         ),
@@ -95,7 +102,7 @@ export function pairPayments(
       }
     }
 
-    pairs.push({ payment, released, refused, pending, withheld });
+    pairs.push({ payment, released, refused, emergency, pending, withheld });
   }
 
   const orphans: AttemptRecord[] = [];
@@ -103,11 +110,13 @@ export function pairPayments(
     if (claimed.has(key)) continue;
     for (const attempt of list) {
       orphans.push(attempt);
-      if (attempt.type !== "released") continue;
+      if (attempt.type === "refused") continue;
       findings.push(
         finding(
           "RELEASE_WITHOUT_PAYMENT",
-          `released ${attempt.h} cites pay_tx ${attempt.payTx}, which is not a settled transfer to the witness in the scanned window`,
+          attempt.payTx === ""
+            ? `${attempt.type} ${attempt.h} carries no pay_tx — the recovery left no on-chain record`
+            : `${attempt.type} ${attempt.h} cites pay_tx ${attempt.payTx}, which is not a settled transfer to the witness in the scanned window`,
           { h: attempt.h, pay_tx: attempt.payTx, at: attempt.consensusTimestamp },
         ),
       );
