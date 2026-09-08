@@ -1,0 +1,44 @@
+{
+  "$schema": "../../../specs/erc7730-tests-v2.schema.json",
+  "descriptor": "../calldata-KlaxonRegistry.json",
+  "tests": [
+    {
+      "description": "Claim a KLAXON project",
+      "rawTx": "0x02f89283aa36a780843b9aca00843b9aca00830186a094000000000000000000000000000000000000000080a4e1fa8e8422b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcbc001a030a17e19d5f61bd36929634f8ce4f9c98e67459b16508365490a7f45bf5378e9a039cd9220290e65048daf0e10c6614e597410021865cf9f17c77e5ea39705cab0",
+      "expected": {
+        "intent": "Claim a KLAXON project",
+        "interpolatedIntent": "Claim KLAXON project 0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb",
+        "owner": "KLAXON",
+        "fields": [
+          {"label": "Project", "value": "0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb"}
+        ]
+      }
+    },
+    {
+      "description": "Commit a policy hash",
+      "rawTx": "0x02f8b383aa36a701843b9aca00843b9aca00830186a094000000000000000000000000000000000000000080b8448ffae92b22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcba4540eaa30019b7648711a00a760ad35b559f9bdf278507696091be59fc86ca7c001a012c79a2f433f1e8fe6db5b34b7583b03437a450f201863ad6cf79ade49ed21efa0518d99eb7b00f9bc2507df2813366f12ec313fe44be49e464d9df62cce50bb13",
+      "expected": {
+        "intent": "Commit KLAXON release policy",
+        "interpolatedIntent": "Commit policy 0xa4540eaa30019b7648711a00a760ad35b559f9bdf278507696091be59fc86ca7 for project 0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb",
+        "owner": "KLAXON",
+        "fields": [
+          {"label": "Project", "value": "0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb"},
+          {"label": "Policy hash", "value": "0xa4540eaa30019b7648711a00a760ad35b559f9bdf278507696091be59fc86ca7"}
+        ]
+      }
+    },
+    {
+      "description": "Lift a revocation by advancing the epoch",
+      "rawTx": "0x02f8b383aa36a702843b9aca00843b9aca00830186a094000000000000000000000000000000000000000080b8440f33125d22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb0000000000000000000000000000000000000000000000000000000000000004c080a0ad2e4fbe143bdc7e5ac5a84f128b06710ca97d19293f721daa2ba7973f99b179a0286ec1fa7875768e4015625778c6df66cb349e359373dd21e79af7b9c2f879ba",
+      "expected": {
+        "intent": "Lift KLAXON revocation",
+        "interpolatedIntent": "Lift revocation for 0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb at epoch 4",
+        "owner": "KLAXON",
+        "fields": [
+          {"label": "Project", "value": "0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb"},
+          {"label": "Epoch", "value": "4"}
+        ]
+      }
+    }
+  ]
+}

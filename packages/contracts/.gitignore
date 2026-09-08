@@ -1,0 +1,6 @@
+# Foundry
+out/
+cache/
+broadcast/
+# Vendored with `forge install --no-git`; reinstall with the command in README.md.
+lib/

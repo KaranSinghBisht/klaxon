@@ -1,0 +1,75 @@
+{
+  "$schema": "../../specs/erc7730-v2.schema.json",
+  "context": {
+    "contract": {
+      "deployments": [
+        {
+          "chainId": 8453,
+          "address": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "chainId": 11155111,
+          "address": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "owner": "KLAXON",
+    "contractName": "KlaxonRegistry",
+    "info": {
+      "url": "https://github.com/KaranSinghBisht/klaxon",
+      "deploymentDate": "2026-09-09T00:00:00Z"
+    }
+  },
+  "display": {
+    "formats": {
+      "register(bytes32 p)": {
+        "$id": "register",
+        "intent": "Claim a KLAXON project",
+        "interpolatedIntent": "Claim KLAXON project {#.p}",
+        "fields": [
+          {
+            "label": "Project",
+            "format": "raw",
+            "path": "#.p"
+          }
+        ]
+      },
+      "commitPolicy(bytes32 p, bytes32 h)": {
+        "$id": "commitPolicy",
+        "intent": "Commit KLAXON release policy",
+        "interpolatedIntent": "Commit policy {#.h} for project {#.p}",
+        "fields": [
+          {
+            "label": "Project",
+            "format": "raw",
+            "path": "#.p"
+          },
+          {
+            "label": "Policy hash",
+            "format": "raw",
+            "path": "#.h"
+          }
+        ]
+      },
+      "unrevoke(bytes32 p, uint64 e)": {
+        "$id": "unrevoke",
+        "intent": "Lift KLAXON revocation",
+        "interpolatedIntent": "Lift revocation for {#.p} at epoch {#.e}",
+        "fields": [
+          {
+            "label": "Project",
+            "format": "raw",
+            "path": "#.p"
+          },
+          {
+            "label": "Epoch",
+            "format": "raw",
+            "path": "#.e"
+          }
+        ]
+      }
+    }
+  }
+}
