@@ -15,3 +15,6 @@ packages/contracts/cache/
 *.key
 klaxon-member*.json
 witness-master*
+
+# OMC session state
+.omc/

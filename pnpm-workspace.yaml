@@ -2,3 +2,13 @@ packages:
   - packages/*
   - demo/collector
   - demo/worm
+
+# @ledgerhq/ledger-key-ring-protocol -> @ledgerhq/speculos-transport -> @ledgerhq/live-dmk-speculos,
+# which is not published to npm. It is a device-emulator transport, unused by restoreTrustchain.
+overrides:
+  "@ledgerhq/live-dmk-speculos": "link:./stubs/empty"
+
+# Build scripts we allow to run (pnpm 11 refuses unlisted postinstalls).
+# esbuild's postinstall only fetches its platform binary; it backs tsup and the action bundle.
+allowBuilds:
+  esbuild: true
