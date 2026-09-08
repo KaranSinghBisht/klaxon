@@ -73,8 +73,8 @@ The witness stores no B. `emergency` recomputes it from the paper-backed master.
 
 1. Payment settled on Hedera: `result == SUCCESS`, `memo_base64 → h`, witness credited ≥ price, `consensus_timestamp` within 600 s, 3 retries @ 400 ms for mirror lag. *(auth; mirror down → infra)*
 2. JWT: `iss == https://token.actions.githubusercontent.com`, `aud == "klaxon:"+h`, RS256, `clockTolerance` 60 s; `repository_id ∈ project`. *(auth; JWKS down → infra)*
-3. `commitmentHash(C) == h`; `sig` valid; **`C.{repository_id, run_id, run_attempt, environment}` equal the JWT claims — absent `environment` claim → refuse.** *(auth)*
-4. Policy: `raw.githubusercontent.com/{owner}/{repo}/{sha}/klaxon.policy.json`; `sha256(bytes) == policyHash[project]` on Sepolia; `C.environment ∈ policy.environments`. *(policy)*
+3. `commitmentHash(C) == h`; `sig` valid; **`C.{repository_id, run_id, run_attempt, environment}` equal the JWT claims.** An absent `environment` claim matches only the sentinel `C.environment == "(none)"` — a request that *claims* an environment its token does not carry is the lying attack and fails here. *(auth)*
+4. Policy: `raw.githubusercontent.com/{owner}/{repo}/{sha}/klaxon.policy.json`; `sha256(bytes) == policyHash[project]` on Sepolia; `C.environment ∈ policy.environments` — `"(none)"` never is, so **the honest worm in the install job is refused here, as `policy/4`, and revokes.** *(policy)*
 5. Workflow at `sha` (`job_workflow_sha` for reusable; deny reusable workflows outside the project; refuse `event_name == pull_request`): the job with this environment has no install step and only 40-hex-pinned `uses:`. *(policy)*
 6. `C.secret ∈ policy.environments[env].secrets`; `C.gen == current_gen`; share row exists and not retired. *(policy)*
 7. Releases for `(project, secret, gen)` < `max_releases` — **refuse without revoke**. *(policy, no revoke)*
