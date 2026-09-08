@@ -16,7 +16,7 @@ import { PrivateKey } from "@x402/hedera";
 import { buildPayClient } from "./client.js";
 import { describeFailure } from "./failures.js";
 import { fetchWitnessAccount, normalizeWitness } from "./manifest.js";
-import { STATE_COMMITMENT, STATE_VALUE } from "./state.js";
+import { STATE_COMMITMENT, STATE_PAY_TX } from "./state.js";
 import { httpReleaseTransport, type KlaxonReleaseTransport } from "./transport.js";
 
 export const DEFAULT_WITNESS = "https://klaxon-witness.fly.dev";
@@ -100,8 +100,9 @@ export async function run(deps: RunDeps): Promise<void> {
     c.setSecret(value);
     emitGithubMasks(deps.writeLine);
     c.setOutput("value", value);
-    c.saveState(STATE_VALUE, value);
+    // Only public, on-the-record values reach state — never the plaintext.
     c.saveState(STATE_COMMITMENT, released.h);
+    c.saveState(STATE_PAY_TX, released.payTx);
     c.info(
       `KLAXON: ${name} released · commitment ${released.h} · paid ${released.payTx} · hcs #${released.hcs.sequence_number}`,
     );

@@ -92,17 +92,18 @@ The action calls `core.setSecret(value)` **before** anything else touches the va
 the plaintext bytes in hex and base64). Masking is literal and line-oriented — it will not catch a
 re-encoding the registry does not know about, so never log derived forms.
 
-The post step re-masks and writes the commitment hash to `$GITHUB_STEP_SUMMARY`. To do that it
-reads the value back from `$GITHUB_STATE`, which the runner exposes only to this action's own post
-step (`STATE_*`), i.e. the same runner-temp blast radius as the output and not the job-wide
-environment. Runner-side masks already persist across steps, so the re-mask is belt-and-braces.
+The post step writes the commitment hash and the payment that bought it to
+`$GITHUB_STEP_SUMMARY`. It handles **no secret material**: the released value is never written to
+`$GITHUB_STATE`, only `h` and `pay_tx`, both of which are public on Hedera anyway. Runner-side masks
+already persist for the whole job, so persisting the plaintext to buy a re-mask in the post step
+would be pure exposure for no gain.
 
 ## Failure surfacing
 
 | Failure | Class | What the job log says |
 |---|---|---|
 | `getIDToken` cannot find `ACTIONS_ID_TOKEN_REQUEST_URL` | infra | `KLAXON: missing id-token: write permission — add \`permissions: { id-token: write }\` to the job` |
-| Witness 403 `{class:"auth"\|"policy"}` | auth/policy | `KLAXON: release refused (<class>, check <n>: <reason> · commitment <h>)`, plus `· the project is now revoked` for a policy failure other than check 7 |
+| Witness 403 `{class:"auth"\|"policy"}` | auth/policy | `KLAXON: refused (<class>, check <n>): <reason> · commitment <h> · on the record: HCS #<seq> · project revoked` — the HCS clause appears when the witness reports the message it published, and the revocation clause when it reports (or, for an older witness, implies) one |
 | Witness 503 `{class:"infra"}` | infra | `KLAXON: witness could not complete the release (…) — fail closed, retry`. No revoke. |
 | Payment rejected (spend control, insufficient HBAR) | infra | names `pay-account` and points at the balance and `max-tinybars`; fail closed, retry |
 | `sha256(B) != b_hash` | — | `KLAXON: witness returned a bad share`. The share is **never** printed — this is a witness-compromise signal. |

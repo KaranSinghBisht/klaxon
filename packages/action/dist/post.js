@@ -21243,29 +21243,36 @@ function getIDToken(aud) {
 
 // src/state.ts
 var STATE_COMMITMENT = "klaxon_commitment";
-var STATE_VALUE = "klaxon_value";
+var STATE_PAY_TX = "klaxon_pay_tx";
 
 // src/post.ts
+function dashed(txId) {
+  return txId.replace("@", "-").replace(/\.(?=\d+$)/, "-");
+}
+function summaryFor(h, payTx) {
+  const paid = payTx.length > 0 ? `
+Paid by \`${payTx}\` \u2014 https://hashscan.io/testnet/transaction/${dashed(payTx)}
+` : "";
+  return `### KLAXON
+
+Release commitment \`${h}\`
+${paid}
+Verify it against the topic and the payment: \`npx klaxon verify\`
+`;
+}
 async function post(c = core_exports) {
-  const value = c.getState(STATE_VALUE);
-  if (value.length > 0) c.setSecret(value);
   const h = c.getState(STATE_COMMITMENT);
   if (h.length === 0) {
     c.debug("KLAXON: no commitment in state \u2014 the release did not complete");
     return;
   }
-  const md = `### KLAXON
-
-Release commitment \`${h}\`
-
-Verify it against the topic and the payment: \`npx klaxon verify\`
-`;
+  const payTx = c.getState(STATE_PAY_TX);
   try {
-    await c.summary.addRaw(md, true).write();
+    await c.summary.addRaw(summaryFor(h, payTx), true).write();
   } catch (err) {
     c.debug(`KLAXON: step summary unavailable (${err instanceof Error ? err.message : "unknown"})`);
   }
-  c.info(`KLAXON: release commitment ${h}`);
+  c.info(`KLAXON: release commitment ${h}${payTx.length > 0 ? ` \xB7 paid ${payTx}` : ""}`);
 }
 if (process.env.GITHUB_ACTIONS === "true" && process.env.VITEST === void 0) {
   void post();

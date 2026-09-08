@@ -17,14 +17,22 @@ function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * The witness now reports revocation outright; a witness that does not send the field still implies
+ * it, because class `policy` revokes except for check 7, the release budget (PROTOCOL §6, D16).
+ */
+function wasRevoked(r: ReleaseRefused): boolean {
+  return r.revoked ?? (r.class === "policy" && r.check !== 7);
+}
+
 function describeRefusal(r: ReleaseRefused): string {
-  const where = `check ${r.check}: ${r.reason} · commitment ${r.h}`;
   if (r.class === "infra") {
-    return `KLAXON: witness could not complete the release (${where}) — fail closed, retry`;
+    // Infra never publishes to HCS and never revokes, so there is nothing further to cite.
+    return `KLAXON: witness could not complete the release (check ${r.check}: ${r.reason} · commitment ${r.h}) — fail closed, retry`;
   }
-  // Class `policy` revokes the project (PROTOCOL §6); check 7 is the release budget and does not.
-  const revoked = r.class === "policy" && r.check !== 7 ? " · the project is now revoked" : "";
-  return `KLAXON: release refused (${r.class}, ${where})${revoked}`;
+  const record = r.hcs ? ` · on the record: HCS #${r.hcs.sequence_number}` : "";
+  const revoked = wasRevoked(r) ? " · project revoked" : "";
+  return `KLAXON: refused (${r.class}, check ${r.check}): ${r.reason} · commitment ${r.h}${record}${revoked}`;
 }
 
 function looksLikePaymentFailure(msg: string): boolean {

@@ -1,7 +1,7 @@
 /**
- * Keys shared between `dist/index.js` and `dist/post.js`. The runner exposes saved state to this
- * action's own post step as `STATE_<name>` and to nothing else, so it is not the job-wide
- * environment exposure that `GITHUB_ENV` would be (B §1.4).
+ * Keys shared between `dist/index.js` and `dist/post.js`. Both hold public, on-the-record values —
+ * the released plaintext is deliberately never written here. Runner masks are job-wide already, so
+ * persisting the secret to buy a re-mask in the post step would be pure exposure.
  */
 export const STATE_COMMITMENT = "klaxon_commitment";
-export const STATE_VALUE = "klaxon_value";
+export const STATE_PAY_TX = "klaxon_pay_tx";

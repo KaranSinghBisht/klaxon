@@ -159,12 +159,14 @@ describe("run", () => {
     expect(r.audiences).toEqual(["klaxon:probe"]);
   });
 
-  it("saves the commitment for the post step and logs the release line", async () => {
+  it("saves only public values for the post step and logs the release line", async () => {
     const r = recorder();
     await run(deps(r));
 
     expect(r.state.klaxon_commitment).toBe(H);
-    expect(r.state.klaxon_value).toBe(PLAINTEXT);
+    expect(r.state.klaxon_pay_tx).toBe("0.0.1@1.2");
+    // The plaintext is never persisted — the post step has nothing to re-mask, by design.
+    expect(Object.values(r.state)).not.toContain(PLAINTEXT);
     expect(r.info[0]).toBe(
       `KLAXON: DEPLOYER_PRIVATE_KEY released · commitment ${H} · paid 0.0.1@1.2 · hcs #42`,
     );
@@ -207,6 +209,53 @@ describe("run", () => {
     expect(r.failed[0]).toContain("revoked");
   });
 
+  it("cites the HCS record and the revocation the witness reported", async () => {
+    const r = recorder();
+    await run(
+      deps(r, {
+        buildTransport: async () =>
+          fakeTransport({
+            ok: false,
+            h: H,
+            class: "policy",
+            check: 4,
+            reason: "job has no environment",
+            hcs: { sequence_number: "4821", consensus_timestamp: "1788848437.031176249" },
+            revoked: true,
+          }),
+        getSecret: async () => {
+          throw new Error("release refused");
+        },
+      }),
+    );
+    expect(r.failed[0]).toBe(
+      `KLAXON: refused (policy, check 4): job has no environment · commitment ${H} · on the record: HCS #4821 · project revoked`,
+    );
+  });
+
+  it("does not claim a revocation the witness explicitly denied", async () => {
+    const r = recorder();
+    await run(
+      deps(r, {
+        buildTransport: async () =>
+          fakeTransport({
+            ok: false,
+            h: H,
+            class: "policy",
+            check: 7,
+            reason: "release budget exhausted",
+            hcs: { sequence_number: "4822", consensus_timestamp: "1788848438.0" },
+            revoked: false,
+          }),
+        getSecret: async () => {
+          throw new Error("release refused");
+        },
+      }),
+    );
+    expect(r.failed[0]).toContain("HCS #4822");
+    expect(r.failed[0]).not.toContain("revoked");
+  });
+
   it("tells the operator to retry when the witness fails closed", async () => {
     const r = recorder();
     await run(
@@ -220,6 +269,8 @@ describe("run", () => {
     );
     expect(r.failed[0]).toMatch(/fail closed, retry/);
     expect(r.failed[0]).not.toMatch(/revoked/);
+    // Infra never reaches HCS, so there is no record to cite.
+    expect(r.failed[0]).not.toMatch(/HCS/);
   });
 
   it("never prints the share when the witness returns a bad one", async () => {

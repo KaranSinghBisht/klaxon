@@ -166399,13 +166399,16 @@ var ID_TOKEN_MESSAGE = "KLAXON: missing id-token: write permission \u2014 add `p
 function messageOf(err) {
   return err instanceof Error ? err.message : String(err);
 }
+function wasRevoked(r47) {
+  return r47.revoked ?? (r47.class === "policy" && r47.check !== 7);
+}
 function describeRefusal(r47) {
-  const where = `check ${r47.check}: ${r47.reason} \xB7 commitment ${r47.h}`;
   if (r47.class === "infra") {
-    return `KLAXON: witness could not complete the release (${where}) \u2014 fail closed, retry`;
+    return `KLAXON: witness could not complete the release (check ${r47.check}: ${r47.reason} \xB7 commitment ${r47.h}) \u2014 fail closed, retry`;
   }
-  const revoked = r47.class === "policy" && r47.check !== 7 ? " \xB7 the project is now revoked" : "";
-  return `KLAXON: release refused (${r47.class}, ${where})${revoked}`;
+  const record2 = r47.hcs ? ` \xB7 on the record: HCS #${r47.hcs.sequence_number}` : "";
+  const revoked = wasRevoked(r47) ? " \xB7 project revoked" : "";
+  return `KLAXON: refused (${r47.class}, check ${r47.check}): ${r47.reason} \xB7 commitment ${r47.h}${record2}${revoked}`;
 }
 function looksLikePaymentFailure(msg) {
   return /payment|402|INSUFFICIENT|spend control|allowedAssets/i.test(msg);
@@ -166457,7 +166460,7 @@ async function fetchWitnessAccount(witness, f7) {
 
 // src/state.ts
 var STATE_COMMITMENT = "klaxon_commitment";
-var STATE_VALUE = "klaxon_value";
+var STATE_PAY_TX = "klaxon_pay_tx";
 
 // src/transport.ts
 function isReleaseResponse(v3) {
@@ -166553,8 +166556,8 @@ async function run(deps) {
     c22.setSecret(value);
     emitGithubMasks(deps.writeLine);
     c22.setOutput("value", value);
-    c22.saveState(STATE_VALUE, value);
     c22.saveState(STATE_COMMITMENT, released.h);
+    c22.saveState(STATE_PAY_TX, released.payTx);
     c22.info(
       `KLAXON: ${name} released \xB7 commitment ${released.h} \xB7 paid ${released.payTx} \xB7 hcs #${released.hcs.sequence_number}`
     );
