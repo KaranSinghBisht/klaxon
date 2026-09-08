@@ -97,7 +97,10 @@ describe("ECIES share delivery", () => {
     const env = eciesSeal(kp.pub.enc, H, randomBytes(32));
     expect(() => eciesOpen(kp, "1".repeat(64), env)).toThrow(/authentication/);
     expect(() => eciesOpen(other, H, env)).toThrow(/authentication/);
-    const bad = { ...env, ct: env.ct.replace(/.$/, (c) => (c === "A" ? "B" : "A")) };
+    // Flip a real byte: changing the last base64url character can touch only padding bits.
+    const ctBytes = Buffer.from(env.ct, "base64url");
+    ctBytes[0] = (ctBytes[0] as number) ^ 0x01;
+    const bad = { ...env, ct: ctBytes.toString("base64url") };
     expect(() => eciesOpen(kp, H, bad)).toThrow(/authentication/);
   });
   it("uses a fresh ephemeral key per seal", () => {
