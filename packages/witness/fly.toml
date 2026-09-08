@@ -1,0 +1,48 @@
+app = "klaxon-witness"
+primary_region = "iad"          # near GitHub-hosted runners (US East) — cuts ~80 ms per request
+
+[build]
+  dockerfile = "packages/witness/Dockerfile"
+
+[env]
+  PORT = "8080"
+  KLAXON_DB_PATH = "/data/klaxon.db"
+  HEDERA_NETWORK = "testnet"
+  X402_FACILITATOR = "https://api.testnet.blocky402.com"
+  MIRROR_NODE = "https://testnet.mirrornode.hedera.com"
+  SEPOLIA_RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com"
+  KLAXON_SOURCE = "raw"
+  CONFIRMATIONS = "3"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Not optional (B §7.3): a stopped machine misses PolicyCommitted/Unrevoked blocks and adds a
+  # cold start to the money shot's 402. One machine, because SQLite on a Fly volume is
+  # single-attach and two machines would silently diverge.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 60
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[[mounts]]
+  source = "klaxon_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[checks.health]
+  type = "http"
+  port = 8080
+  path = "/health"
+  method = "get"
+  interval = "15s"
+  grace_period = "20s"
+  timeout = "3s"

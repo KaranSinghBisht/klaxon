@@ -4,8 +4,15 @@
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
-  "bin": { "klaxon-witness": "./dist/main.js" },
-  "scripts": { "build": "tsup src/main.ts --format esm --clean", "dev": "tsx src/main.ts", "start": "node dist/main.js" },
+  "bin": {
+    "klaxon-witness": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsup && cp src/db/schema.sql dist/schema.sql",
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json"
+  },
   "dependencies": {
     "@klaxon/core": "workspace:*",
     "@hiero-ledger/sdk": "2.85.0",
@@ -17,5 +24,7 @@
     "yaml": "2.9.0",
     "zod": "^4.0.0"
   },
-  "devDependencies": { "tsx": "^4.20.0" }
+  "devDependencies": {
+    "tsx": "^4.20.0"
+  }
 }
