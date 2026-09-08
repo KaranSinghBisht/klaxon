@@ -4,8 +4,20 @@
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
-  "bin": { "klaxon-verify": "./dist/bin.js" },
-  "scripts": { "build": "tsup src/bin.ts src/index.ts --format esm --dts --clean", "dev": "tsx src/bin.ts" },
-  "dependencies": { "jose": "6.2.12", "viem": "2.56.3", "zod": "^4.0.0" },
-  "devDependencies": { "tsx": "^4.20.0", "canonicalize": "^4.0.0" }
+  "bin": {
+    "klaxon-verify": "./dist/bin.js"
+  },
+  "scripts": {
+    "build": "tsup src/bin.ts src/index.ts --format esm --dts --clean",
+    "dev": "tsx src/bin.ts"
+  },
+  "dependencies": {
+    "jose": "6.2.12",
+    "viem": "2.56.3",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "canonicalize": "^4.0.0"
+  }
 }

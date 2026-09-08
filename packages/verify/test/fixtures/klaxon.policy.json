@@ -1,0 +1,15 @@
+{
+  "klaxon": 1,
+  "project_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "repository_id": "987654321",
+  "max_releases": 4,
+  "environments": {
+    "production": {
+      "secrets": ["DEPLOYER_PRIVATE_KEY"]
+    }
+  },
+  "workflow_rules": {
+    "forbid_install_steps": true,
+    "require_pinned_uses": true
+  }
+}
