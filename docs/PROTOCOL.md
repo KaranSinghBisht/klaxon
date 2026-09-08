@@ -83,14 +83,15 @@ The witness stores no B. `emergency` recomputes it from the paper-backed master.
 
 Failure → `refused{class, check, reason}` to HCS + ntfy; **class policy revokes** (except check 7). Infra → 503, no HCS message, no revoke. Success → `released` to HCS via the outbox, **then** `share_b` returned.
 
-## 7. HCS message envelope (one topic per project; submit key = witness)
+## 7. HCS message envelope (one topic per project; submit key = 1-of-2 KeyList {witness, operator laptop})
 
 `{"klaxon":1, "type":"released"|"refused"|"rotate"|"revoke"|"unrevoke"|"jwks"|"emergency", "ts":"<ISO>", "project_id":"…", ...}`
 
 - `released`: `+ {h, C, jwt, sig, pay_tx}`
 - `refused`: `+ {h, C, jwt, sig, pay_tx, class, check, reason}` (auth/policy only — infra never publishes)
 - `rotate`: `+ {secret, from_gen, to_gen}` · `revoke`: `+ {reason, epoch}` · `unrevoke`: `+ {epoch, sepolia_tx}`
-- `jwks`: `+ {keys:[…]}` (daily snapshot of GitHub's JWKS) · `emergency`: `+ {secret, gen, pay_tx}` (published by the operator's laptop key)
+- `jwks`: `+ {keys:[…]}` (daily snapshot of GitHub's JWKS)
+- `emergency`: `+ {h, secret, gen, pay_tx}` — published by the **operator's laptop key** (the second member of the topic's submit KeyList). Its commitment is `h = sha256(canonicalize({v:1, type:"emergency", project_id, secret, gen, ts}))`, paid on Hedera with memo `h` from the laptop's account before decrypting. `verify` pairs an `emergency` message with its payment exactly like a `released` (one per payment) and reports the count separately.
 
 Messages > 1024 B are chunked by the SDK; readers group by `chunk_info.initial_transaction_id`, order by `number`, concatenate bytes, and use the **last chunk's** `consensus_timestamp`.
 
