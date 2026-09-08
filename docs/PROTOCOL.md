@@ -32,7 +32,7 @@ All bodies JSON. Errors are `{ok:false, ...}` with the classes below.
 | `POST /revoke` | member-signed | `{project_id, reason}` → `{ok:true, epoch}` |
 
 `ReleaseOk = {ok:true, h, share_b: EciesEnvelope, hcs:{sequence_number, consensus_timestamp}}`
-`ReleaseRefused = {ok:false, h, class:"auth"|"policy"|"infra", check: 0..9, reason}`
+`ReleaseRefused = {ok:false, h, class:"auth"|"policy"|"infra", check: 0..9, reason, hcs?:{sequence_number, consensus_timestamp}, revoked?: boolean}` — `hcs` is present for auth/policy refusals (the refusal is published before the 403 is sent), never for infra.
 
 The witness learns `pay_tx` from x402 settlement (`settle.transaction`); the body never carries it.
 The client reads it back from the `PAYMENT-RESPONSE` header.

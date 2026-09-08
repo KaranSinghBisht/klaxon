@@ -1,0 +1,34 @@
+name: 'KLAXON get'
+description: 'Release a KLAXON-protected secret into this job against a runner-paid, consensus-timestamped commitment'
+author: 'KLAXON'
+branding:
+  icon: 'bell'
+  color: 'red'
+inputs:
+  secret:
+    description: 'Secret name as registered with `klaxon add` — reads .klaxon/<name>.enc from the checkout'
+    required: true
+  witness:
+    description: 'Witness base URL'
+    required: false
+    default: 'https://klaxon-witness.fly.dev'
+  member:
+    description: 'KLAXON_MEMBER credential (base64 or JSON) — the Ledger Key Ring member keypair'
+    required: true
+  pay-account:
+    description: 'Hedera account id that pays for the release, e.g. 0.0.1234567'
+    required: true
+  pay-key:
+    description: 'Hedera ECDSA private key for that account, 0x-prefixed'
+    required: true
+  max-tinybars:
+    description: 'Hard spend cap per release, in tinybars'
+    required: false
+    default: '200000'
+outputs:
+  value:
+    description: 'The released plaintext secret (masked in logs; plumb it into one step''s env:)'
+runs:
+  using: 'node24'
+  main: 'dist/index.js'
+  post: 'dist/post.js'

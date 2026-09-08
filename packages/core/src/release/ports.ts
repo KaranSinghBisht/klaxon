@@ -22,6 +22,10 @@ export interface ReleaseRefused {
   class: "auth" | "policy" | "infra";
   check: number;
   reason: string;
+  /** Present for auth/policy refusals: the HCS record of the refusal — "your attempt is on the record, #N". Never for infra. */
+  hcs?: { sequence_number: string; consensus_timestamp: string };
+  /** True when this refusal revoked the project. */
+  revoked?: boolean;
 }
 
 export type ReleaseResponse = ReleaseOk | ReleaseRefused;

@@ -1,0 +1,50 @@
+name: klaxon oidc probe
+
+# B §1.7 — the day-1 gate for the action. Proves that this repository can mint a GitHub OIDC token
+# with a custom KLAXON audience, and shows which claims the witness will actually see. No KLAXON
+# code, no dependencies, no checkout: if this job prints `aud: klaxon:deadbeef` and a non-empty
+# `environment`, every precondition the release path has on GitHub is satisfied.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment: production      # the `environment` claim exists ONLY when the job declares one
+    steps:
+      - name: Mint klaxon:deadbeef and print the decoded claims
+        run: |
+          node --input-type=module -e '
+            const url = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+            const token = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+            if (!url || !token) {
+              throw new Error("missing id-token: write permission on this job");
+            }
+            const res = await fetch(url + "&audience=" + encodeURIComponent("klaxon:deadbeef"), {
+              headers: { authorization: "Bearer " + token, accept: "application/json" },
+            });
+            if (!res.ok) throw new Error("id-token endpoint returned HTTP " + res.status);
+            const { value } = await res.json();
+            const c = JSON.parse(Buffer.from(value.split(".")[1], "base64url").toString("utf8"));
+            console.log(JSON.stringify({
+              iss: c.iss,
+              aud: c.aud,
+              environment: c.environment ?? null,
+              repository: c.repository,
+              repository_id: c.repository_id,
+              run_id: c.run_id,
+              run_attempt: c.run_attempt,
+              event_name: c.event_name,
+              sha: c.sha,
+              workflow_sha: c.workflow_sha,
+              job_workflow_ref: c.job_workflow_ref,
+              jti: c.jti,
+            }, null, 1));
+            if (c.aud !== "klaxon:deadbeef") throw new Error("audience was not honoured");
+            if (!c.environment) throw new Error("no environment claim — check 3 would refuse");
+          '
