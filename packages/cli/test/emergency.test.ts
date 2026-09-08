@@ -28,6 +28,7 @@ const MASTER_HEX = "11".repeat(32);
 const MASTER = Buffer.from(MASTER_HEX, "hex");
 const NAME = "DEPLOYER_PRIVATE_KEY";
 const PLAINTEXT = "0xf00dbabe-not-a-real-key";
+const PAY_TX = "0.0.1234@1757332800.000000000";
 
 describe("share B derivation (PROTOCOL §3 / D28)", () => {
   it("matches a value pinned from the specified HKDF parameters", () => {
@@ -82,10 +83,17 @@ describe("the emergency memo", () => {
   });
 });
 
+interface PublishedMessage {
+  topicId: string;
+  accountId: string;
+  message: string;
+}
+
 interface Bench {
   deps: CliDeps;
   cwd: string;
   transfers: Array<{ memo: string; to: string; amountTinybars: string }>;
+  published: PublishedMessage[];
   stdout: () => string;
   stderr: () => string;
 }
@@ -111,6 +119,7 @@ function bench(gen = "1"): Bench {
   writeFileSync(encFilePath(cwd, NAME), serializeEncFile(enc));
 
   const transfers: Bench["transfers"] = [];
+  const published: PublishedMessage[] = [];
   const h = makeHarness({
     home,
     cwd,
@@ -119,15 +128,25 @@ function bench(gen = "1"): Bench {
       WITNESS_MASTER: MASTER_HEX,
       KLAXON_PAY_ACCOUNT: "0.0.1234",
       KLAXON_PAY_KEY: `0x${"ab".repeat(32)}`,
+      HEDERA_OPERATOR_ID: "0.0.4242",
+      HEDERA_OPERATOR_KEY: `0x${"cd".repeat(32)}`,
     },
     keychain: async (_s, account) => (account === keychainAccount(dir) ? TEST_PRIV : null),
     restoreWsek: async () => TEST_WSEK,
     memoTransfer: async (a) => {
       transfers.push({ memo: a.memo, to: a.to, amountTinybars: a.amountTinybars });
-      return { payTx: "0.0.1234@1757332800.000000000", consensusTimestamp: "1757332800.000000000" };
+      return { payTx: PAY_TX, consensusTimestamp: "1757332800.000000000" };
+    },
+    publishTopicMessage: async (a) => {
+      published.push({ topicId: a.topicId, accountId: a.accountId, message: a.message });
+      return {
+        sequenceNumber: "7",
+        consensusTimestamp: "1757332801.000000000",
+        transactionId: "0.0.4242@1757332801.000000000",
+      };
     },
   });
-  return { deps: h.deps, cwd, transfers, stdout: h.stdout, stderr: h.stderr };
+  return { deps: h.deps, cwd, transfers, published, stdout: h.stdout, stderr: h.stderr };
 }
 
 describe("emergency", () => {
@@ -139,6 +158,76 @@ describe("emergency", () => {
     expect(res.h).toMatch(/^[0-9a-f]{64}$/);
     expect(b.transfers).toEqual([{ memo: res.h, to: "0.0.9999", amountTinybars: "100000" }]);
     expect(b.stderr()).toContain(`pay_tx=${res.payTx}`);
+  });
+
+  it("publishes exactly one emergency message whose h is the payment memo (PROTOCOL §7)", async () => {
+    const b = bench();
+    const res = await runEmergency(b.deps, NAME, {});
+
+    expect(b.published).toHaveLength(1);
+    const sent = b.published[0];
+    if (!sent) throw new Error("nothing published");
+    expect(sent.topicId).toBe("0.0.48213");
+    // The laptop key, not the paying account: it is the second member of the submit KeyList.
+    expect(sent.accountId).toBe("0.0.4242");
+    expect(JSON.parse(sent.message)).toEqual({
+      klaxon: 1,
+      type: "emergency",
+      ts: "2026-09-08T12:00:00.000Z",
+      project_id: TEST_PROJECT_ID,
+      h: res.h,
+      secret: NAME,
+      gen: "1",
+      pay_tx: PAY_TX,
+    });
+    expect(JSON.parse(sent.message).h).toBe(b.transfers[0]?.memo);
+    expect(res.sequenceNumber).toBe("7");
+    expect(b.stderr()).toContain("hcs emergency seq=7");
+    expect(b.stderr()).toContain("hcs=7");
+  });
+
+  it("still hands over the secret when the publish fails, and says the record is incomplete", async () => {
+    const b = bench();
+    b.deps.publishTopicMessage = async () => {
+      throw new Error("INVALID_SIGNATURE");
+    };
+    const res = await runEmergency(b.deps, NAME, {});
+
+    expect(b.stdout()).toBe(`${PLAINTEXT}\n`);
+    expect(res.payTx).toBe(PAY_TX);
+    expect(res.sequenceNumber).toBeUndefined();
+    expect(b.stderr()).toContain("was NOT published (INVALID_SIGNATURE)");
+    expect(b.stderr()).toContain("publish this to topic 0.0.48213 by hand");
+    // The message the operator has to send is printed verbatim so it can be copied.
+    expect(
+      JSON.parse(
+        b
+          .stderr()
+          .split("\n")
+          .find((l) => l.startsWith("{")) ?? "{}",
+      ),
+    ).toMatchObject({
+      type: "emergency",
+      h: res.h,
+      pay_tx: PAY_TX,
+    });
+  });
+
+  it("falls back to the paying account when HEDERA_OPERATOR_* is unset", async () => {
+    const b = bench();
+    b.deps.env.HEDERA_OPERATOR_ID = undefined;
+    b.deps.env.HEDERA_OPERATOR_KEY = undefined;
+    await runEmergency(b.deps, NAME, {});
+    expect(b.published[0]?.accountId).toBe("0.0.1234");
+  });
+
+  it("prefers an explicit --operator-account over both", async () => {
+    const b = bench();
+    await runEmergency(b.deps, NAME, {
+      operatorAccount: "0.0.5555",
+      operatorKey: `0x${"ef".repeat(32)}`,
+    });
+    expect(b.published[0]?.accountId).toBe("0.0.5555");
   });
 
   it("works at a rotated generation", async () => {
@@ -161,6 +250,7 @@ describe("emergency", () => {
     b.deps.env.WITNESS_MASTER = "22".repeat(32);
     await expect(runEmergency(b.deps, NAME, {})).rejects.toThrowError(/does not match b_hash/);
     expect(b.transfers).toEqual([]);
+    expect(b.published).toEqual([]);
   });
 
   it("says so when there is no master at all", async () => {
@@ -181,7 +271,9 @@ describe("emergency", () => {
     const b = bench();
     const res = await runEmergency(b.deps, NAME, { noPay: true });
     expect(res.payTx).toBeUndefined();
+    expect(res.sequenceNumber).toBeUndefined();
     expect(b.transfers).toEqual([]);
+    expect(b.published).toEqual([]);
     expect(b.stderr()).toContain("no on-chain record");
   });
 

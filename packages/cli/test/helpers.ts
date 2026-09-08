@@ -61,6 +61,9 @@ export function makeHarness(overrides: Partial<CliDeps> = {}): Harness {
     createTopic: async () => {
       throw new Error("test reached Hedera");
     },
+    publishTopicMessage: async () => {
+      throw new Error("test reached Hedera");
+    },
     memoTransfer: async () => {
       throw new Error("test reached Hedera");
     },

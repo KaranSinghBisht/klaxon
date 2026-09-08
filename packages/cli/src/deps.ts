@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { restoreWalletSyncKey, type WsekRestorer } from "@klaxon/core";
+import type { TopicPublisher } from "./hedera/message.js";
+import { publishTopicMessage } from "./hedera/message.js";
 import type { TopicCreator } from "./hedera/topic.js";
 import { createTopic } from "./hedera/topic.js";
 import type { MemoTransfer } from "./hedera/transfer.js";
@@ -24,6 +26,7 @@ export interface CliDeps {
   runWalletCli: WalletCliRunner;
   fetchImpl: typeof fetch;
   createTopic: TopicCreator;
+  publishTopicMessage: TopicPublisher;
   memoTransfer: MemoTransfer;
   restoreWsek: WsekRestorer;
   readStdin: () => Promise<Buffer>;
@@ -50,6 +53,7 @@ export function defaultDeps(overrides: Partial<CliDeps> = {}): CliDeps {
     runWalletCli: execFileRunner(process.env.WALLET_CLI_BIN),
     fetchImpl: fetch,
     createTopic,
+    publishTopicMessage,
     memoTransfer,
     restoreWsek: (member) => restoreWalletSyncKey(member),
     readStdin: readAllStdin,

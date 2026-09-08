@@ -56,8 +56,10 @@ In order:
    `ethereum-sepolia-1` or `ethereum_sepolia-1` — see [Day-1 captures](#day-1-captures-still-owed).
 4. `project_id = sha256(utf8(repository_id) ‖ 0x00 ‖ utf8(rootId))`.
 5. `GET {witness}/.well-known/klaxon.json` for `submit_key` and `hedera_account`.
-6. Creates the HCS topic with `setSubmitKey(witness)` and `setAdminKey(this laptop)` — one topic
-   per project, and only the witness can ever write to it.
+6. Creates the HCS topic with `setAdminKey(this laptop)` and a **1-of-2 `KeyList` submit key**
+   over `{witness submit_key, laptop public key}` (PROTOCOL §7). The witness writes every
+   `released`/`refused`; the laptop writes the one message the witness cannot — the `emergency`
+   record of a recovery it was not involved in. Nobody else can write at all.
 7. `POST /projects`, member-signed.
 8. Writes a `klaxon.policy.json` skeleton and `~/.klaxon/config.json`.
 9. `register(project_id)` then `commitPolicy(project_id, policy_hash)` — **two approvals in one
@@ -221,21 +223,31 @@ DK = A ⊕ B    →  plaintext = AES-256-GCM-open(DK, ct, aad)
 `sha256(B)` is checked against `b_hash` before anything is decrypted, so a wrong master fails
 loudly instead of producing garbage.
 
-It then sends a **plain `TransferTransaction` with `setTransactionMemo(h)`** from the laptop's own
-Hedera account, so a break-glass recovery still leaves the same kind of public, timestamped trace
-a paid release does. `--no-pay` skips it and says out loud that nothing was recorded.
+`h` is the emergency commitment from PROTOCOL §7:
+`h = sha256(canonicalize({v:1, type:"emergency", project_id, secret, gen, ts}))`. In order:
 
-Two caveats, stated plainly:
+1. A **plain `TransferTransaction` with `setTransactionMemo(h)`** from the laptop's Hedera
+   account, so the recovery leaves the same kind of public, timestamped trace a paid release does.
+2. `{klaxon:1, type:"emergency", ts, project_id, h, secret, gen, pay_tx}` published to the project
+   topic with the laptop's key — the second member of the topic's 1-of-2 submit `KeyList`. The
+   sequence number is printed.
+3. **Then** the decrypt. The record exists before the plaintext does, so no later failure can
+   skip it.
 
-- **Ledger's backend is required.** `restoreTrustchain` is what turns the member credential into
-  the wallet-sync key that opens share A, and it is a live network call every time. If Ledger's
-  API is down, `emergency` cannot run either. This is a disclosed liveness dependency, not a
-  workaround for one.
-- `h` here is *not* a release commitment. PROTOCOL §1's `h` hashes a `Commitment` full of GitHub
-  claims this path does not have, and §7's `emergency` HCS message defines no hash of its own, so
-  this command commits to its own canonical object —
-  `{v:1, type:"emergency", project_id, secret, gen, ts}` hashed with RFC 8785 — and uses that as
-  the memo. See [Open questions](#open-questions).
+`--no-pay` skips both and says out loud that nothing was recorded.
+
+The publish is never load-bearing: **an emergency must not be blocked by HCS.** If it fails, the
+secret is still handed over, and a loud warning names the unpaired payment, the topic, and prints
+the exact message to publish by hand.
+
+Options: `--operator-account` / `--operator-key` / `--operator-key-type` select the publishing key
+(default `HEDERA_OPERATOR_ID` / `HEDERA_OPERATOR_KEY` — the same pair `init` put in the KeyList —
+falling back to the paying account, since the two are usually the same laptop).
+
+One caveat, stated plainly: **Ledger's backend is required.** `restoreTrustchain` is what turns
+the member credential into the wallet-sync key that opens share A, and it is a live network call
+every time. If Ledger's API is down, `emergency` cannot run either. It is called *before* the
+payment, so an outage costs nothing.
 
 ---
 
@@ -297,11 +309,6 @@ wallet-cli output" rather than failing when it finds none.
   It is not wired here: `@klaxon/verify` is not a dependency of this package, and adding one would
   couple the operator CLI to the independent verifier — which is the one thing D5 says must share
   no code. Run `npx klaxon-verify` directly.
-- **The `emergency` HCS message.** PROTOCOL §7 says an `emergency` message is "published by the
-  operator's laptop key", but §7 also fixes the topic's submit key to the **witness**, so the
-  laptop cannot submit to its own project topic. This command therefore pays the memo transfer and
-  stops there. Resolving it needs either a second topic or a submit-key change.
-
 ---
 
 ## Testing
