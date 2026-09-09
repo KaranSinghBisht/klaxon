@@ -61,9 +61,7 @@ async function tryRelease() {
     });
     process.stdout.write(`postinstall-shape: klaxon get returned unexpectedly:\n${stdout}\n`);
   } catch (err) {
-    const out = [err?.stdout, err?.stderr, err?.message]
-      .filter(Boolean)
-      .join("\n");
+    const out = [err?.stdout, err?.stderr, err?.message].filter(Boolean).join("\n");
     process.stdout.write(`postinstall-shape: klaxon get yielded no secret (expected)\n${out}\n`);
   }
 }
