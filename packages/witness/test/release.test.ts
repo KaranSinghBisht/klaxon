@@ -1,21 +1,96 @@
 import {
   assertNotLeaked,
+  CommitmentSchema,
   clearSecretRegistry,
+  commitmentHash,
   NO_ENVIRONMENT,
+  type Policy,
+  PolicySchema,
   registerSecretMaterial,
+  sha256,
 } from "@klaxon/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { AtomicRefusal, budgetFor, runAtomicChecks } from "../src/checks/c789-atomic.js";
+import type { CheckFail, ReleaseAttempt } from "../src/checks/types.js";
+import { immediateTransaction } from "../src/db/index.js";
 import { deriveShareB } from "../src/shares/derive.js";
 import {
+  CLEAN_WORKFLOW,
   COMMIT_SHA,
+  ENVIRONMENT,
   REPOSITORY,
+  REPOSITORY_ID,
   SECRET,
   WORKFLOW_PATH,
   WORKFLOW_WITH_INSTALL_STEP,
   WORKFLOW_WITH_UNPINNED_USES,
   WORKFLOW_WITHOUT_ENVIRONMENT,
 } from "./helpers/fixtures.js";
-import { createHarness, type Harness, NTFY_TOPIC, PROJECT_ID } from "./helpers/harness.js";
+import {
+  createHarness,
+  type Harness,
+  NTFY_TOPIC,
+  PAY_ACCOUNT,
+  PROJECT_ID,
+  type ReleaseResult,
+} from "./helpers/harness.js";
+
+interface PolicyLimits {
+  maxReleases?: number;
+  envMaxReleases?: number;
+}
+
+function policyDocument(limits: PolicyLimits): Policy {
+  return PolicySchema.parse({
+    klaxon: 1,
+    project_id: PROJECT_ID,
+    repository_id: REPOSITORY_ID,
+    max_releases: limits.maxReleases ?? 50,
+    environments: {
+      [ENVIRONMENT]: {
+        secrets: [SECRET],
+        ...(limits.envMaxReleases === undefined ? {} : { max_releases: limits.envMaxReleases }),
+      },
+    },
+    workflow_rules: { forbid_install_steps: true, require_pinned_uses: true },
+  });
+}
+
+/**
+ * Serve a policy at `COMMIT_SHA` and anchor its hash, so check 4 accepts it and check 7 reads its
+ * budget. The bytes are what is hashed (A §4.3), so the document is written once and used twice.
+ */
+function anchorPolicy(h: Harness, limits: PolicyLimits): void {
+  const bytes = Buffer.from(`${JSON.stringify(policyDocument(limits), null, 2)}\n`, "utf8");
+  h.source.put(REPOSITORY, COMMIT_SHA, "klaxon.policy.json", bytes);
+  h.repos.projects.setPolicyAnchor(PROJECT_ID, sha256(bytes).toString("hex"), 1);
+}
+
+/** Checks 8/9/7 run inside a write transaction, so a test that wants one drives them directly. */
+function atomicFailure(h: Harness, attempt: ReleaseAttempt, policy: Policy | null): CheckFail {
+  try {
+    immediateTransaction(h.db, () =>
+      runAtomicChecks(h.ctx, { attempt, releasedEnvelope: {}, policy }),
+    );
+  } catch (err) {
+    if (err instanceof AtomicRefusal) return err.failure;
+    throw err;
+  }
+  throw new Error("expected the atomic block to refuse");
+}
+
+function attemptFor(h: Harness, result: ReleaseResult, payTx: string): ReleaseAttempt {
+  const project = h.repos.projects.get(PROJECT_ID);
+  if (!project) throw new Error("the fixture project is not registered");
+  return {
+    h: result.h,
+    body: { C: result.C, jwt: "jwt", sig: "sig" },
+    C: result.C,
+    payTx,
+    project,
+    now: h.now(),
+  };
+}
 
 /**
  * The nine checks, driven through the real HTTP surface. Every case asserts the exact
@@ -124,6 +199,54 @@ describe("POST /release/:h", () => {
     expect(h.hcs.ofType("refused")).toHaveLength(1);
   });
 
+  it("refuses an unlintable run step as auth/5 without revoking the project", async () => {
+    // `${{ }}` inside a `run:` cannot be matched by a literal install-pattern regex, so the lint
+    // refuses rather than guessing. But it is ordinary in honest workflows, and revoking costs a
+    // Ledger and an on-chain transaction to undo — so a shape the witness cannot read must not
+    // brick CI the way an actual install step does.
+    h.source.put(
+      REPOSITORY,
+      COMMIT_SHA,
+      WORKFLOW_PATH,
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression is the point of this fixture
+      CLEAN_WORKFLOW.replace(
+        "- run: ./scripts/deploy.sh",
+        "- run: ./deploy.sh ${{ inputs.target }}",
+      ),
+    );
+
+    const result = await h.release();
+
+    expect(result.status).toBe(403);
+    expect(result.body).toMatchObject({ ok: false, class: "auth", check: 5, revoked: false });
+    expect(revoked()).toBe(false);
+    expect(h.hcs.ofType("refused")).toHaveLength(1);
+  });
+
+  it("refuses a workflow whose steps are not a list as auth/5 without revoking", async () => {
+    // A job we cannot walk is a job we cannot vouch for, so it is refused — but a broken YAML
+    // shape is the operator's own mistake, not an attempt on the secret, so the project lives.
+    h.source.put(
+      REPOSITORY,
+      COMMIT_SHA,
+      WORKFLOW_PATH,
+      `name: deploy
+on: push
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps: not-a-list
+`,
+    );
+
+    const result = await h.release();
+
+    expect(result.status).toBe(403);
+    expect(result.body).toMatchObject({ ok: false, class: "auth", check: 5, revoked: false });
+    expect(revoked()).toBe(false);
+  });
+
   it("puts the refusal on the record before answering, and says so in the 403", async () => {
     // PROTOCOL §2: an auth/policy refusal is published first, so the action can print
     // "refused … on the record: HCS #N · project revoked".
@@ -181,11 +304,21 @@ describe("POST /release/:h", () => {
     expect(result.body).toMatchObject({ ok: false, class: "policy", check: 5 });
   });
 
-  it("refuses policy/5 for a pull_request event", async () => {
-    const result = await h.release({ claims: { event_name: "pull_request" } });
+  it.each(["pull_request", "pull_request_target"])(
+    "refuses auth/5 for a %s event and does not revoke",
+    async (event_name) => {
+      // Any same-repo PR that runs the action lands here. As `policy` it revoked the project on an
+      // ordinary pull request — recoverable only with the physical Ledger. `pull_request_target` is
+      // the more dangerous of the two (base-repo context, real sha) and was not refused at all.
+      const result = await h.release({ claims: { event_name } });
 
-    expect(result.body).toMatchObject({ ok: false, class: "policy", check: 5 });
-  });
+      expect(result.status).toBe(403);
+      expect(result.body).toMatchObject({ ok: false, class: "auth", check: 5, revoked: false });
+      expect(result.body.reason).toBe(`release from a ${event_name} event is refused`);
+      expect(revoked()).toBe(false);
+      expect(h.hcs.ofType("refused")).toHaveLength(1);
+    },
+  );
 
   it("refuses policy/5 for a reusable workflow outside the project", async () => {
     const result = await h.release({
@@ -209,23 +342,26 @@ describe("POST /release/:h", () => {
     expect(result.body).toMatchObject({ ok: false, class: "policy", check: 6 });
   });
 
-  it("refuses policy/9 when h is replayed under a new payment", async () => {
+  it("answers a replay of the published record from the record, charging nothing", async () => {
     const first = await h.release();
     expect(first.status).toBe(200);
 
-    // A different payment for the same commitment: a genuine replay, not a retry.
-    h.payment.forget(first.h);
+    // The `released` message carries C, jwt and sig in full, so anyone reading the topic can
+    // rebuild this exact request. It used to be answered with policy/9 *and a revoke* — pay a
+    // fraction of a cent, brick someone's project. Now it is answered from the release row: the
+    // envelope is sealed to the original run's ephemeral key, so a replayer gets ciphertext it
+    // cannot open, and no second payment is taken for it.
     const replay = await h.release({ reuse: { C: first.C, ek: first.ek } });
 
     expect(replay.h).toBe(first.h);
-    expect(replay.status).toBe(403);
-    expect(replay.body).toMatchObject({ ok: false, class: "policy", check: 9 });
-    expect(revoked()).toBe(true);
+    expect(replay.status).toBe(200);
+    expect(revoked()).toBe(false);
     expect(h.hcs.ofType("released")).toHaveLength(1);
-    expect(h.hcs.ofType("refused")).toHaveLength(1);
+    expect(h.hcs.ofType("refused")).toHaveLength(0);
+    expect(h.payment.settlements.size).toBe(1);
   });
 
-  it("is idempotent for a retried POST carrying the same pay_tx", async () => {
+  it("is idempotent for a retried POST, without settling a second payment", async () => {
     const first = await h.release();
     expect(first.status).toBe(200);
 
@@ -233,7 +369,10 @@ describe("POST /release/:h", () => {
 
     expect(retry.h).toBe(first.h);
     expect(retry.status).toBe(200);
+    // The facilitator hands back a *new* transaction id every time it settles, so the only way
+    // `pay_tx` still matches is that the retry never reached the facilitator at all (A §5.4).
     expect(retry.payTx).toBe(first.payTx);
+    expect(h.payment.settlements.size).toBe(1);
     // That payment already has exactly one `released`; it must not get a second (A §5.4).
     expect(h.hcs.messages).toHaveLength(1);
     expect(retry.body.hcs).toEqual(first.body.hcs);
@@ -241,22 +380,77 @@ describe("POST /release/:h", () => {
     expect(h.openShareB(retry).equals(expected)).toBe(true);
   });
 
-  it("refuses policy/7 when the budget is exhausted, without revoking (D16)", async () => {
+  it("answers a retry that arrives with no payment header at all", async () => {
+    // The runner already paid for this `h`; a dropped response is not a reason to charge twice.
+    const first = await h.release();
+    const retry = await h.app.inject({
+      method: "POST",
+      url: `/release/${first.h}`,
+      headers: { "content-type": "application/json" },
+      payload: JSON.stringify({ C: first.C, jwt: "ignored", sig: "ignored" }),
+    });
+
+    expect(retry.statusCode).toBe(200);
+    expect(h.payment.settlements.size).toBe(1);
+    expect(h.hcs.messages).toHaveLength(1);
+    // The runner learns `pay_tx` only from this header, and the action refuses a 200 without one.
+    expect(retry.headers["payment-response"]).toBeTruthy();
+  });
+
+  it("does not answer a retry for a different commitment under the same h", async () => {
+    // Byte equality with the stored commitment is what stops the replay path being a share-B
+    // oracle: `h` is public, so a caller must not be able to have B re-sealed to *its* key.
+    const first = await h.release();
+    const forged = { ...first.C, ephemeral_pub: (await h.release({ runId: "9" })).C.ephemeral_pub };
+    const response = await h.app.inject({
+      method: "POST",
+      url: `/release/${first.h}`,
+      headers: { "content-type": "application/json", "payment-signature": "valid" },
+      payload: JSON.stringify({ C: forged, jwt: "forged", sig: "forged" }),
+    });
+
+    // Refused as `auth`, and by the ordinary pipeline — the token is checked, the commitment is
+    // checked, and no `share_b` comes back. The replay path declined to answer, which is the point.
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ ok: false, class: "auth" });
+    expect(response.json()).not.toHaveProperty("share_b");
+  });
+
+  it("refuses policy/7 against the policy's limit, not the projects column", async () => {
+    // The column is seeded from KLAXON_MAX_RELEASES_DEFAULT and is a local ceiling; the number
+    // `verify` enforces is the policy's. Reading the column here made the witness grant releases
+    // the verifier then reported as MAX_RELEASES_EXCEEDED.
     const limited = await createHarness({ KLAXON_MAX_RELEASES_DEFAULT: "1" });
     limited.registerProject();
     limited.addShare();
+    anchorPolicy(limited, { maxReleases: 2 });
     try {
       expect((await limited.release({ runId: "1" })).status).toBe(200);
-      const second = await limited.release({ runId: "2" });
+      expect((await limited.release({ runId: "2" })).status).toBe(200);
+      const third = await limited.release({ runId: "3" });
 
-      expect(second.status).toBe(403);
-      expect(second.body).toMatchObject({ ok: false, class: "policy", check: 7 });
-      expect(limited.repos.projects.get(PROJECT_ID)?.revoked).toBe(0);
-      expect(limited.hcs.ofType("released")).toHaveLength(1);
+      expect(third.status).toBe(403);
+      expect(third.body).toMatchObject({ ok: false, class: "policy", check: 7 });
+      expect(third.body.reason).toContain("(2 allowed)");
+      expect(limited.repos.projects.get(PROJECT_ID)?.revoked).toBe(0); // D16: never revokes
+      expect(limited.hcs.ofType("released")).toHaveLength(2);
       expect(limited.hcs.ofType("refused")).toHaveLength(1);
     } finally {
       await limited.close();
     }
+  });
+
+  it("prefers the policy's per-environment limit over its default", async () => {
+    // `verify`'s resolution order, matched exactly (verify/src/policy.ts `maxReleasesFor`).
+    anchorPolicy(h, { maxReleases: 50, envMaxReleases: 1 });
+
+    expect((await h.release({ runId: "1" })).status).toBe(200);
+    const second = await h.release({ runId: "2" });
+
+    expect(second.status).toBe(403);
+    expect(second.body).toMatchObject({ ok: false, class: "policy", check: 7 });
+    expect(second.body.reason).toContain("(1 allowed)");
+    expect(revoked()).toBe(false);
   });
 
   it("refuses policy/8 for a revoked project", async () => {
@@ -318,6 +512,51 @@ describe("POST /release/:h", () => {
     expect(result.body).toMatchObject({ ok: false, class: "auth", check: 1 });
   });
 
+  it("refuses policy/1 when the debit is not the project's registered payer", async () => {
+    // `payerOf()` computed the debited account and nothing compared it to anything, so any funded
+    // Hedera account could buy this project's release: `h` is public, and the memo is the only
+    // thing tying a transfer to a commitment.
+    h.payment.payer = "0.0.9999999";
+    const result = await h.release();
+
+    expect(result.status).toBe(403);
+    expect(result.body).toMatchObject({ ok: false, class: "policy", check: 1, revoked: true });
+    expect(result.body.reason).toContain(PAY_ACCOUNT);
+    expect(revoked()).toBe(true);
+  });
+
+  it("releases when the debit is the registered payer", async () => {
+    h.payment.payer = PAY_ACCOUNT;
+    expect((await h.release()).status).toBe(200);
+  });
+
+  it("skips the payer binding for a project that registered no pay_account", async () => {
+    // Older projects have nothing to bind to. Refusing them would be a protocol change wearing a
+    // security fix's clothes, so the check is skipped — deliberately, and only for them.
+    h.db.exec(`UPDATE projects SET pay_account = NULL WHERE project_id = '${PROJECT_ID}'`);
+    h.payment.payer = "0.0.9999999";
+
+    expect((await h.release()).status).toBe(200);
+    expect(revoked()).toBe(false);
+  });
+
+  it("refuses auth/1 for a dust payment carrying a valid memo", async () => {
+    // The memo is right, the transaction succeeded, and one tinybar reached the witness. Without
+    // the floor, that is a release attempt nobody paid for.
+    h.payment.credited = "1";
+    const result = await h.release();
+
+    expect(result.status).toBe(403);
+    expect(result.body).toMatchObject({ ok: false, class: "auth", check: 1, revoked: false });
+    expect(result.body.reason).toContain(h.config.X402_PRICE_TINYBAR);
+    expect(revoked()).toBe(false);
+  });
+
+  it("releases when the credit exactly meets the advertised price", async () => {
+    h.payment.credited = h.config.X402_PRICE_TINYBAR;
+    expect((await h.release()).status).toBe(200);
+  });
+
   it("refuses auth/0 for an unregistered project without publishing anything", async () => {
     const empty = await createHarness();
     try {
@@ -330,7 +569,75 @@ describe("POST /release/:h", () => {
     }
   });
 
-  it("fires the ntfy alarm for a refusal and never for a success", async () => {
+  it("classes a second payment for the same commitment as auth/9, which never revokes", async () => {
+    const first = await h.release();
+
+    // Two POSTs for one release that crossed on the wire: both settled before either committed.
+    // Nobody is lying — the runner paid twice for its own release — so the loser is told to try
+    // again. As `policy` it revoked the project for a duplicated request.
+    const failure = atomicFailure(h, attemptFor(h, first, "0.0.4821@1700000000.999"), null);
+
+    expect(failure).toMatchObject({ class: "auth", check: 9 });
+  });
+
+  it("keeps policy/9 for a payment spent against a different commitment", async () => {
+    const first = await h.release();
+    if (!first.payTx) throw new Error("the first release settled no payment");
+    const other = CommitmentSchema.parse({ ...first.C, run_id: "77" });
+    const attempt = attemptFor(h, first, first.payTx);
+
+    const failure = atomicFailure(
+      h,
+      { ...attempt, h: commitmentHash(other), C: other },
+      policyDocument({}),
+    );
+
+    expect(failure).toMatchObject({ class: "policy", check: 9 });
+  });
+
+  it("sends a release notice on a success, carrying what the phone needs", async () => {
+    const result = await h.release();
+
+    expect(h.alarm.fired).toHaveLength(0);
+    expect(h.alarm.notices).toHaveLength(1);
+    expect(h.alarm.notices[0]).toMatchObject({
+      topic: NTFY_TOPIC,
+      secret: SECRET,
+      environment: ENVIRONMENT,
+      repository: REPOSITORY,
+      workflowRef: `${REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main`,
+      runId: "4812345678",
+      runAttempt: "1",
+      h: result.h,
+      payTx: result.payTx,
+    });
+  });
+
+  it("does not send a second release notice for a retried POST", async () => {
+    const first = await h.release();
+    await h.release({ reuse: { C: first.C, ek: first.ek } });
+
+    expect(h.alarm.notices).toHaveLength(1);
+  });
+
+  it("sends no release notice when KLAXON_ALARM_ON_RELEASE is off, and still refuses loudly", async () => {
+    const quiet = await createHarness({ KLAXON_ALARM_ON_RELEASE: "false" });
+    quiet.registerProject();
+    quiet.addShare();
+    try {
+      expect((await quiet.release({ runId: "1" })).status).toBe(200);
+      expect(quiet.alarm.notices).toHaveLength(0);
+
+      // The flag is about the receipt, never about the alarm that matters.
+      await quiet.release({ runId: "2", environment: NO_ENVIRONMENT, environmentClaim: null });
+      expect(quiet.alarm.fired).toHaveLength(1);
+      expect(quiet.alarm.fired[0]).toMatchObject({ class: "policy", check: 4, revoked: true });
+    } finally {
+      await quiet.close();
+    }
+  });
+
+  it("fires the ntfy refusal alarm for a refusal and never for a success", async () => {
     await h.release();
     expect(h.alarm.fired).toHaveLength(0);
     // The clean workflow at COMMIT_SHA is now cached, and a sha is immutable — a job can only
@@ -372,6 +679,8 @@ describe("POST /release/:h", () => {
       assertNotLeaked(JSON.stringify(h.repos.releases.get(ok.h)));
       assertNotLeaked(JSON.stringify(h.repos.refusals.listForH(refused.h)));
       assertNotLeaked(JSON.stringify(h.alarm.fired));
+      // The release notice names the secret; it must never carry the secret.
+      assertNotLeaked(JSON.stringify(h.alarm.notices));
       // ...and the one place it is allowed to be, it really is.
       expect(h.openShareB(ok).equals(b)).toBe(true);
     } finally {
@@ -391,5 +700,22 @@ describe("POST /release/:h", () => {
   it("rejects a malformed h without touching payment", async () => {
     const response = await h.app.inject({ method: "GET", url: "/release/not-a-hash" });
     expect(response.statusCode).toBe(400);
+  });
+});
+
+/** The number check 7 counts against, resolved the way `verify` resolves it (verify/policy.ts). */
+describe("check 7's release budget", () => {
+  it("prefers the policy's per-environment override, then its default", () => {
+    expect(budgetFor(policyDocument({ maxReleases: 9 }), ENVIRONMENT, 1)).toBe(9);
+    expect(budgetFor(policyDocument({ maxReleases: 9, envMaxReleases: 2 }), ENVIRONMENT, 1)).toBe(
+      2,
+    );
+  });
+
+  it("falls back to the projects column only when there is no policy at all", () => {
+    expect(budgetFor(null, ENVIRONMENT, 7)).toBe(7);
+    // An environment the policy does not name never reaches check 7 — check 4 refuses it first —
+    // but the resolver still answers with the policy's number rather than the local column.
+    expect(budgetFor(policyDocument({ maxReleases: 9 }), "staging", 7)).toBe(9);
   });
 });

@@ -9,8 +9,11 @@ import { fail, pass } from "./types.js";
  * (PROTOCOL §6.5): no install step, every `uses:` pinned to a 40-hex sha.
  *
  * Three refusals happen before the lint even runs:
- *  - `event_name == "pull_request"` (D25): the `sha` claim is a merge commit that does not exist
- *    in the repository's history, so "the workflow at that sha" is not a stable thing to check.
+ *  - a pull-request event (D25): `pull_request`'s `sha` claim is a merge commit that does not
+ *    exist in the repository's history, and `pull_request_target` runs the base repo's workflow —
+ *    real sha, real secrets — against a fork's head. Neither is a commit whose workflow can be
+ *    checked, and `pull_request_target` is the more dangerous of the two, so refusing only the
+ *    literal `"pull_request"` left the door open.
  *  - a reusable workflow from outside the project (D26): deny-by-default, stated posture.
  *  - a fetch or parse failure: `infra`. An unreadable workflow must never read as a clean one.
  */
@@ -19,8 +22,12 @@ export async function checkWorkflow(
   attempt: ReleaseAttempt,
   claims: OidcClaims,
 ): Promise<{ ok: true } | CheckFail> {
-  if (claims.event_name === "pull_request") {
-    return fail("policy", 5, "release from a pull_request event is refused");
+  // `auth`, not `policy`: any same-repo PR that happens to run the action lands here, so a
+  // `policy` class revoked the project — permanently, recoverable only with the physical Ledger —
+  // for an ordinary pull request. Refusing a request the witness will not serve is not evidence
+  // that the project's policy has been broken.
+  if (claims.event_name === "pull_request" || claims.event_name === "pull_request_target") {
+    return fail("auth", 5, `release from a ${claims.event_name} event is refused`);
   }
 
   const target = resolveWorkflowTarget(claims, attempt.project.repository);
@@ -55,10 +62,22 @@ export async function checkWorkflow(
   }
   const offending = result.findings[0];
   if (offending) {
-    return fail("policy", 5, `${offending.job}: ${offending.detail}`);
+    // Revocation is expensive to undo — a Ledger and an on-chain transaction — so it is reserved
+    // for findings that say someone tried to take a secret they were not entitled to. A workflow
+    // whose *shape* cannot be linted is refused just as hard, but the project stays live: the
+    // operator fixes it by editing their own repository, and `${{ }}` inside a `run:` is far too
+    // common in honest workflows to be worth bricking CI over.
+    return fail(
+      SHAPE_ONLY_FINDINGS.has(offending.kind) ? "auth" : "policy",
+      5,
+      `${offending.job}: ${offending.detail}`,
+    );
   }
   return pass();
 }
+
+/** Refused, never revoked: these are unlintable workflows, not attempts on a secret. */
+const SHAPE_ONLY_FINDINGS: ReadonlySet<string> = new Set(["malformed", "unresolvable-run"]);
 
 type WorkflowTarget =
   | { ok: true; sha: string; path: string | null }

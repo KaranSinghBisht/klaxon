@@ -1,9 +1,15 @@
-import { eciesSeal, type ReleaseOk, type ReleaseRefused } from "@klaxon/core";
+import {
+  canonicalize,
+  eciesSeal,
+  type Policy,
+  type ReleaseOk,
+  type ReleaseRefused,
+} from "@klaxon/core";
 import type { Db, ProjectRow } from "../db/index.js";
 import { immediateTransaction } from "../db/index.js";
 import { refusedEnvelope, releasedEnvelope } from "../hcs/envelope.js";
 import { publishOutboxId } from "../hcs/publish.js";
-import type { HcsPort, RefusalAlarm } from "../ports/index.js";
+import type { HcsPort, RefusalAlarm, ReleaseAlarm } from "../ports/index.js";
 import { deriveShareB } from "../shares/derive.js";
 import { checkPayment } from "./c1-payment.js";
 import { checkJwt } from "./c2-jwt.js";
@@ -21,7 +27,7 @@ export interface PipelineDeps extends CheckDeps {
 }
 
 export type ReleaseOutcome =
-  | { status: 200; body: ReleaseOk; alarm: null }
+  | { status: 200; body: ReleaseOk; alarm: ReleaseAlarm | null }
   | { status: 403; body: ReleaseRefused; alarm: RefusalAlarm | null }
   | { status: 503; body: ReleaseRefused; alarm: null };
 
@@ -31,6 +37,9 @@ export interface PipelineInput {
   C: ReleaseAttempt["C"];
   payTx: string;
 }
+
+/** What `replayRelease` needs: everything but a payment, because it must not cause one. */
+export type ReplayInput = Omit<PipelineInput, "payTx">;
 
 /**
  * The release path, in the order A §5.3 fixes:
@@ -85,7 +94,7 @@ export async function runRelease(
   let outboxId: number;
   try {
     const atomic = immediateTransaction(deps.db, () =>
-      runAtomicChecks(deps, { attempt, releasedEnvelope: envelope }),
+      runAtomicChecks(deps, { attempt, releasedEnvelope: envelope, policy: pure.policy }),
     );
     if (atomic.kind === "idempotent") {
       return await idempotentSuccess(deps, attempt, atomic.row);
@@ -116,7 +125,7 @@ export async function runRelease(
 
   return {
     status: 200,
-    alarm: null,
+    alarm: releaseAlarm(deps, attempt, pure.claims),
     body: {
       ok: true,
       h: attempt.h,
@@ -129,8 +138,44 @@ export async function runRelease(
   };
 }
 
+/**
+ * A §5.4, and *before any money moves*: the release for this `h` already exists, so answer from it.
+ *
+ * The route calls this before it settles, because settling is not idempotent. A retried POST gets a
+ * fresh transaction id from the facilitator, the release row's `pay_tx` then disagrees with a
+ * payment the runner never meant to make, and check 9 refused the runner's own successful release —
+ * as `policy`, which revoked the project for the crime of retrying after a dropped response.
+ *
+ * The commitment must match the stored one byte for byte. `h` is public — it is the payment memo,
+ * and the whole request is in the `released` message on the topic — so answering some *other* `C`
+ * from a stored row would seal B to whatever ephemeral key the caller supplied. Byte equality means
+ * the envelope can only ever open under the key the original run generated, which is why this path
+ * can skip checks 1–6 without becoming a share-B oracle: a replayer gets ciphertext it cannot open,
+ * and pays nothing for it.
+ */
+export async function replayRelease(
+  deps: PipelineDeps,
+  input: ReplayInput,
+): Promise<ReleaseOutcome | null> {
+  const row = deps.repos.releases.get(input.h);
+  if (!row || row.commitment_json !== canonicalize(input.C)) return null;
+  const project = deps.repos.projects.get(row.project_id);
+  // Revocation is the stop button: once it is down, not even a retry of a release that already
+  // happened is answered here. The normal path takes it and refuses as check 8, on the record.
+  // A missing project goes the same way for the same reason — this line decides whether a secret
+  // moves, so both cases are spelled out rather than folded into `?.revoked !== 0`.
+  if (!project) return null;
+  if (project.revoked !== 0) return null;
+
+  return await idempotentSuccess(
+    deps,
+    { h: input.h, body: input.body, C: input.C, payTx: row.pay_tx, project, now: deps.clock() },
+    row,
+  );
+}
+
 type PureResult =
-  | { ok: true; claims: OidcClaims }
+  | { ok: true; claims: OidcClaims; policy: Policy }
   | { ok: false; failure: CheckFail; claims: OidcClaims | null };
 
 async function runPureChecks(deps: PipelineDeps, attempt: ReleaseAttempt): Promise<PureResult> {
@@ -153,7 +198,38 @@ async function runPureChecks(deps: PipelineDeps, attempt: ReleaseAttempt): Promi
   const c6 = checkSecretGeneration(deps, attempt, c4.value.policy);
   if (!c6.ok) return { ok: false, failure: c6, claims };
 
-  return { ok: true, claims };
+  // Check 4's policy is carried out of here rather than dropped: check 7's budget is the *policy's*
+  // number, and re-fetching it inside the transaction would be a network call under BEGIN IMMEDIATE.
+  return { ok: true, claims, policy: c4.value.policy };
+}
+
+/**
+ * D29's quieter half: a release notice. The refusal alarm is the one that wakes you; this one is
+ * the receipt you glance at, at a lower priority, and it exists so the answer to "did I expect
+ * this?" is on the lock screen — which secret, which environment, which workflow, which run — with
+ * `h` to look the whole thing up on the topic if the answer is no.
+ *
+ * Off by config for an operator who does not want a buzz per deploy; on by default because a
+ * release nobody notices is the failure mode the project is named after.
+ */
+function releaseAlarm(
+  deps: PipelineDeps,
+  attempt: ReleaseAttempt,
+  claims: OidcClaims,
+): ReleaseAlarm | null {
+  if (!deps.config.KLAXON_ALARM_ON_RELEASE) return null;
+  return {
+    topic: attempt.project.ntfy_topic,
+    secret: attempt.C.secret,
+    environment: attempt.C.environment,
+    repository: attempt.project.repository,
+    workflowRef: claims.workflow_ref,
+    runId: claims.run_id,
+    runAttempt: claims.run_attempt,
+    h: attempt.h,
+    payTx: attempt.payTx,
+    tinybars: deps.config.X402_PRICE_TINYBAR,
+  };
 }
 
 function sealShareB(
@@ -169,7 +245,8 @@ function sealShareB(
 
 /**
  * A §5.4: the runner retried after a dropped response. Re-derive B, re-seal it, hand back the
- * consensus coordinates already recorded — and publish nothing new.
+ * consensus coordinates already recorded — and publish nothing new. No release alarm either: the
+ * phone already buzzed for this `h`, and a retry is not a second release.
  */
 async function idempotentSuccess(
   deps: PipelineDeps,

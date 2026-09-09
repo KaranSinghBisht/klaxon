@@ -1,3 +1,5 @@
+import { OUTBOUND_TIMEOUT_MS, timeoutSignal } from "./http.js";
+
 /**
  * Hedera mirror node REST reads (B §3.4). Public data, no key — the same source `verify` uses,
  * which is what makes "the constraint is checked by the party with the security interest, over
@@ -41,6 +43,8 @@ export interface MirrorClientOptions {
   /** Mirror ingestion lags consensus by ~1–2 s, so a fresh settlement needs a moment (B §2.6). */
   attempts?: number;
   delayMs?: number;
+  /** Per-call deadline; a mirror that hangs is an outage, and check 1 must hear about it. */
+  timeoutMs?: number;
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -49,6 +53,7 @@ export class MirrorNodeClient {
   private readonly baseUrl: string;
   private readonly attempts: number;
   private readonly delayMs: number;
+  private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly sleep: (ms: number) => Promise<void>;
 
@@ -56,6 +61,7 @@ export class MirrorNodeClient {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.attempts = opts.attempts ?? 3;
     this.delayMs = opts.delayMs ?? 400;
+    this.timeoutMs = opts.timeoutMs ?? OUTBOUND_TIMEOUT_MS;
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
@@ -67,7 +73,10 @@ export class MirrorNodeClient {
     for (let i = 0; i < this.attempts; i++) {
       if (i > 0) await this.sleep(this.delayMs);
       try {
-        const res = await this.fetchImpl(url, { headers: { accept: "application/json" } });
+        const res = await this.fetchImpl(url, {
+          headers: { accept: "application/json" },
+          signal: timeoutSignal(this.timeoutMs),
+        });
         if (res.status === 404) {
           lastError = new MirrorUnavailableError("transaction not ingested yet");
           continue;
@@ -97,6 +106,7 @@ export class MirrorNodeClient {
     try {
       const res = await this.fetchImpl(`${this.baseUrl}/api/v1/network/nodes?limit=1`, {
         headers: { accept: "application/json" },
+        signal: timeoutSignal(this.timeoutMs),
       });
       return res.ok;
     } catch {

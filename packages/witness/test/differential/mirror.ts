@@ -1,5 +1,6 @@
 import type { RawTransaction } from "../../../verify/src/mirror/payments.js";
 import type { RawTopicMessage } from "../../../verify/src/mirror/topic.js";
+import { PAY_ACCOUNT as RUNNER_ACCOUNT } from "../helpers/fixtures.js";
 import type { CapturedMessage, CapturedPayment } from "./capture.js";
 
 /**
@@ -17,8 +18,13 @@ export const CHUNK_BYTES = 1024;
 
 /** Blocky402's account: the fee payer on chain, deliberately not the runner (PROTOCOL §5). */
 export const FEE_PAYER = "0.0.7162784";
-/** The account `FakePaymentPort` reports as the payer of the x402 debit. */
-export const RUNNER_ACCOUNT = "0.0.10405046";
+/**
+ * The account `FakePaymentPort` reports as the payer of the x402 debit. Same constant the harness
+ * registers as the project's `pay_account`: `verify` pairs a payment to a commitment through this
+ * account, so a fixture that renders a different one is not rendering the run it claims to.
+ */
+export { RUNNER_ACCOUNT };
+
 const NODE_ACCOUNT = "0.0.802";
 const CHARGED_FEE = 246_668;
 

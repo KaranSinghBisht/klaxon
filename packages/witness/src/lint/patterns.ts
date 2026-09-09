@@ -31,6 +31,8 @@ export const PINNED_USES = /^[^@]+@[0-9a-f]{40}$/;
 export const LOCAL_USES = /^\.\//;
 /** A digest-addressed container image is immutable in the same way a commit sha is. */
 export const DOCKER_DIGEST_USES = /^docker:\/\/.+@sha256:[0-9a-f]{64}$/;
+/** The same rule for a job's `container:`, which carries no `docker://` prefix. */
+export const PINNED_IMAGE = /^[^\s@]+@sha256:[0-9a-f]{64}$/;
 /** Any `${{ … }}` we cannot resolve statically — we refuse rather than guess. */
 export const GITHUB_EXPRESSION = /\$\{\{/;
 
@@ -51,4 +53,13 @@ export function isPinnedUses(uses: string): boolean {
   if (LOCAL_USES.test(value)) return true;
   if (DOCKER_DIGEST_USES.test(value)) return true;
   return PINNED_USES.test(value);
+}
+
+/**
+ * A job's `container:` runs before any of its steps do, so `node:latest` is arbitrary code with the
+ * environment's secrets in reach — the same hole an unpinned `uses:` is. MIGRATION.md tells people
+ * to bake the toolchain into a digest-pinned image; this is the line that holds them to it.
+ */
+export function isPinnedImage(image: string): boolean {
+  return PINNED_IMAGE.test(image.trim());
 }

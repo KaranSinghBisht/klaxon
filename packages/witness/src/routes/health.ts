@@ -7,6 +7,11 @@ import type { WitnessContext } from "../context.js";
  * Failing closed is deliberate: Fly stops routing to a machine whose health check is red, which is
  * the correct behaviour for a witness that cannot settle payments, cannot read the chain back, or
  * has fallen behind on Sepolia (B §7.3).
+ *
+ * All four are live: `db` runs a query, `facilitator` and `mirror` are probed over the wire by the
+ * payment port on every call (cached for a few seconds), and the cursor lag is read from the
+ * watcher. Nothing here reports a flag latched at boot — a witness that was healthy once is not a
+ * witness that is healthy now.
  */
 const MAX_CURSOR_LAG_S = 300;
 

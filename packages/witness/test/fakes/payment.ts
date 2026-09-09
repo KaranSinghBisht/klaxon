@@ -5,6 +5,7 @@ import type {
   PaymentRequiredAnswer,
   SettleOutcome,
 } from "../../src/ports/index.js";
+import { PAY_ACCOUNT as RUNNER_ACCOUNT } from "../helpers/fixtures.js";
 
 /**
  * A payment port that settles in memory. It keeps the memo binding honest — `verifySettledOnChain`
@@ -13,10 +14,22 @@ import type {
  */
 export type MirrorMode = "ok" | "infra" | "wrong-memo" | "failed" | "underpaid";
 
+/**
+ * The account every fixture pays from. Check 1 binds the debit side of the transfer to the
+ * project's registered `pay_account`, so this and the harness's registration have to be the same
+ * value — re-exported from `fixtures.ts` rather than restated, because "keep these in sync" is a
+ * comment, not a mechanism, and the copies did drift.
+ */
+export { RUNNER_ACCOUNT };
+
 export class FakePaymentPort implements PaymentPort {
   mirrorMode: MirrorMode = "ok";
   /** Seconds subtracted from `now` when reporting the settlement's consensus timestamp. */
   settlementAgeS = 1;
+  /** Tinybars the mirror node says reached the witness. Null means "the advertised price". */
+  credited: string | null = null;
+  /** The account the transfer list debits. Null means "the account every fixture pays from". */
+  payer: string | null = null;
   readonly settlements = new Map<string, { memo: string; payTx: string }>();
   /**
    * `pay_tx` → the consensus timestamp check 1 read back, so a test can render the same payment
@@ -59,32 +72,25 @@ export class FakePaymentPort implements PaymentPort {
     if (header === "facilitator-down") {
       return { ok: false, infra: true, reason: "facilitator settle failed" };
     }
-    const existing = this.settlements.get(h);
+    // A facilitator settles a *payment*, not a request: presenting the same PAYMENT-SIGNATURE
+    // twice produces two transactions with two ids. Handing back a memoised `pay_tx` per `h` made
+    // the fake idempotent on the witness's behalf and hid the bug that mattered — a retried POST
+    // must be answered from the witness's own release row, before it settles anything.
     this.counter += 1;
-    const payTx = existing?.payTx ?? `0.0.4821@1700000000.${this.counter}`;
+    const payTx = `0.0.4821@1700000000.${this.counter}`;
     this.settlements.set(h, { memo: h, payTx });
     return {
       ok: true,
       payTx,
-      payer: "0.0.10405046",
+      payer: RUNNER_ACCOUNT,
       responseHeader: Buffer.from(JSON.stringify({ transaction: payTx })).toString("base64"),
       settle: {
         success: true,
         transaction: payTx,
         network: "hedera:testnet",
-        payer: "0.0.10405046",
+        payer: RUNNER_ACCOUNT,
       },
     };
-  }
-
-  /** Force the next settlement for `h` to reuse a `pay_tx` already spent elsewhere. */
-  reuse(h: string, payTx: string): void {
-    this.settlements.set(h, { memo: h, payTx });
-  }
-
-  /** Drop the remembered settlement so the next POST for `h` arrives with a *new* payment. */
-  forget(h: string): void {
-    this.settlements.delete(h);
   }
 
   async verifySettledOnChain(payTx: string, expect: OnChainExpectation): Promise<OnChainOutcome> {
@@ -109,8 +115,8 @@ export class FakePaymentPort implements PaymentPort {
     return {
       ok: true,
       consensusTimestamp,
-      payerAccount: "0.0.10405046",
-      amount: this.priceTinybars,
+      payerAccount: this.payer ?? RUNNER_ACCOUNT,
+      amount: this.credited ?? this.priceTinybars,
     };
   }
 

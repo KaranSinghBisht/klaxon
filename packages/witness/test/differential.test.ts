@@ -95,7 +95,7 @@ describe("witness ↔ verify differential", () => {
     h.app.inject({
       method: "POST",
       url: path,
-      headers: { "content-type": "application/json", ...h.memberHeaders("POST", path, body) },
+      headers: { "content-type": "application/json", ...h.operatorHeaders("POST", path, body) },
       payload: JSON.stringify(body),
     });
 

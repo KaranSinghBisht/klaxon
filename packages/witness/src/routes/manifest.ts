@@ -34,9 +34,14 @@ export function registerManifestRoute(app: FastifyInstance, ctx: WitnessContext)
       submit_key: ctx.hcs.submitKeyDer,
       memo_rule: "transaction memo MUST equal the commitment hash h",
       projects,
+      // `npx klaxon verify` does not exist: the `klaxon` CLI has no `verify` subcommand, and the
+      // verifier is a separate, unpublished package. This is the invocation that actually runs
+      // from a clean checkout of the repository, which is what a reader is being invited to do.
+      // The price floor is deliberately left off — it defaults inside `verify`, so the number the
+      // report assumes is not one this witness got to choose.
       verify: first
-        ? `npx klaxon verify --topic ${first.topic_id} --witness ${ctx.config.witnessAccount} --registry ${ctx.config.KLAXON_REGISTRY}`
-        : `npx klaxon verify --witness ${ctx.config.witnessAccount} --registry ${ctx.config.KLAXON_REGISTRY}`,
+        ? `pnpm --filter @klaxon/verify dev --topic ${first.topic_id} --witness ${ctx.config.witnessAccount} --registry ${ctx.config.KLAXON_REGISTRY}`
+        : `pnpm --filter @klaxon/verify dev --witness ${ctx.config.witnessAccount} --registry ${ctx.config.KLAXON_REGISTRY}`,
     });
   });
 }

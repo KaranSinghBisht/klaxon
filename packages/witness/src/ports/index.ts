@@ -1,4 +1,4 @@
-export type { AlarmPort, RefusalAlarm } from "./alarm.js";
+export type { AlarmPort, RefusalAlarm, ReleaseAlarm } from "./alarm.js";
 export type { HcsPort, HcsPublished } from "./hcs.js";
 export type { OidcPort } from "./oidc.js";
 export type {

@@ -85,6 +85,8 @@ export const EnvSchema = z.object({
   // --- alarm (D29) ---
   NTFY_BASE: z.url().default("https://ntfy.sh"),
   NTFY_DEFAULT_TOPIC: z.string().optional(),
+  /** The release notice, at a lower priority than a refusal. On by default; a deploy is news. */
+  KLAXON_ALARM_ON_RELEASE: boolFrom(true),
 
   // --- policy knobs (D16, D22) ---
   KLAXON_PAYMENT_MAX_AGE_S: intFrom(600),

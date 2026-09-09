@@ -7,6 +7,17 @@ import type { Clock, OidcPort, PaymentPort, SourcePort } from "../ports/index.js
 /**
  * PROTOCOL §6 taxonomy. Failing 1–3 is `auth`, failing 4–9 is `policy` (and revokes, except 7 —
  * D16), and *any* infrastructure error anywhere is `infra`: 503, no HCS message, no revoke.
+ *
+ * The class is what decides revocation, so the check number is a label and the class is the
+ * judgement. Three refusals are deliberately not what their number suggests, each because the
+ * default answer was wrong in practice:
+ *
+ *  - 5, a pull-request event → `auth`. Any same-repo PR that runs the action reaches it, and
+ *    revoking on one bricked the project over an ordinary pull request.
+ *  - 9, the same commitment presented under a second payment → `auth`. That is a runner's own
+ *    request racing itself, not a replay.
+ *  - 1, a payment debited from an account the project never registered → `policy`. Someone else's
+ *    money buying this project's release is a breach, not a bad credential.
  */
 export type RefusalClass = "auth" | "policy" | "infra";
 

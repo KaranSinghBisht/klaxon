@@ -1,4 +1,4 @@
-import { canonicalize } from "@klaxon/core";
+import { canonicalize, type Policy } from "@klaxon/core";
 import { isUniqueViolation, type ReleaseRow } from "../db/index.js";
 import type { CheckDeps, CheckFail, ReleaseAttempt } from "./types.js";
 import { fail } from "./types.js";
@@ -28,6 +28,28 @@ export interface AtomicArgs {
   attempt: ReleaseAttempt;
   /** Built by the caller so the envelope is written inside the same transaction as the decision. */
   releasedEnvelope: unknown;
+  /**
+   * The policy check 4 proved against the Sepolia anchor. Check 7's limit comes from here, not
+   * from the `projects` row — see `budgetFor`. `null` only when no policy was parsed, which the
+   * pipeline makes impossible today because check 4 runs first.
+   */
+  policy: Policy | null;
+}
+
+/**
+ * D16 — the release budget that binds is the *policy's*, resolved exactly the way `verify` resolves
+ * it (`packages/verify/src/policy.ts` `maxReleasesFor`): the per-environment override first, then
+ * the policy-wide default.
+ *
+ * `projects.max_releases` is seeded from `KLAXON_MAX_RELEASES_DEFAULT` and is a local operator
+ * ceiling, not a number anyone anchored on Sepolia. Enforcing it here made the witness and the
+ * verifier disagree — the witness allowed 50 releases, the policy said fewer, and `verify` reported
+ * `MAX_RELEASES_EXCEEDED` against honest releases the witness had just granted. The column remains
+ * the fallback for an attempt that reached this point with no policy at all.
+ */
+export function budgetFor(policy: Policy | null, environment: string, fallback: number): number {
+  if (!policy) return fallback;
+  return policy.environments[environment]?.max_releases ?? policy.max_releases;
 }
 
 export function runAtomicChecks(deps: CheckDeps, args: AtomicArgs): AtomicOutcome {
@@ -75,28 +97,47 @@ export function runAtomicChecks(deps: CheckDeps, args: AtomicArgs): AtomicOutcom
       // already has exactly one `released` message and must not get a second.
       return { kind: "idempotent", row: existing };
     }
+
+    // Two requests, one commitment, two payments: the runner's own POSTs crossed on the wire and
+    // both settled before either committed. The route absorbs the *sequential* retry by answering
+    // from the release row before it settles anything (`replayRelease`); what is left here is the
+    // genuinely concurrent case, and nobody is lying in it — the runner paid twice for one
+    // release. `auth`: refuse, do not revoke. Revoking turned a duplicated request into a project
+    // that only the physical Ledger could bring back.
+    if (existing && existing.commitment_json === canonicalC) {
+      throw new AtomicRefusal(
+        fail("auth", 9, "this commitment has already been released under another payment"),
+      );
+    }
+    // Same `h`, a *different* commitment. `h` is sha256 over canonical `C`, so this is not a
+    // runner racing itself; it is a doctored replay of a hash somebody else's run published.
     if (existing) {
       throw new AtomicRefusal(fail("policy", 9, "commitment hash h has already been released"));
     }
     // No row for this h, so the collision was the unique index on pay_tx: one payment, two
-    // different commitments.
+    // different commitments. A client cannot reach this deliberately — it never names `pay_tx`
+    // (the witness learns it from settlement) and check 1 refuses any payment whose memo is not
+    // this `h` — so the honest reading is a facilitator handing one transaction id to two
+    // requests. It stays `policy` all the same: if it ever *is* one payment stretched across two
+    // commitments, that is a spent payment being re-spent, which is exactly what check 9 is for.
     throw new AtomicRefusal(
       fail("policy", 9, "this payment has already been spent on a different commitment"),
     );
   }
 
   // ---- check 7: budget. A rate limit, not an attack signal — refuse WITHOUT revoking (D16) ----
+  const limit = budgetFor(args.policy, attempt.C.environment, project.max_releases);
   const used = deps.repos.releases.countForGeneration(
     project.project_id,
     attempt.C.secret,
     Number(attempt.C.gen),
   );
-  if (used > project.max_releases) {
+  if (used > limit) {
     throw new AtomicRefusal(
       fail(
         "policy",
         7,
-        `release budget exhausted for ${attempt.C.secret} gen ${attempt.C.gen} (${project.max_releases} allowed)`,
+        `release budget exhausted for ${attempt.C.secret} gen ${attempt.C.gen} (${limit} allowed)`,
       ),
     );
   }

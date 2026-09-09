@@ -5,6 +5,7 @@ import type { Repos } from "../db/index.js";
 import type { WitnessConfig } from "../env.js";
 import type { Logger } from "../log.js";
 import type { Clock, PolicyAnchor, RegistryPort } from "../ports/index.js";
+import { OUTBOUND_TIMEOUT_MS } from "./http.js";
 import { applyRegistryEvent } from "./registry-events.js";
 
 /**
@@ -37,7 +38,8 @@ export class ViemRegistryAdapter implements RegistryPort {
   ) {
     this.client = createPublicClient({
       chain: sepolia,
-      transport: http(config.SEPOLIA_RPC_URL),
+      // Stated rather than inherited: a public RPC that hangs must stall one poll, not the timer.
+      transport: http(config.SEPOLIA_RPC_URL, { timeout: OUTBOUND_TIMEOUT_MS }),
     });
   }
 

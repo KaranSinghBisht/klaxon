@@ -15,6 +15,7 @@ import type {
   PaymentRequiredAnswer,
   SettleOutcome,
 } from "../ports/index.js";
+import { OUTBOUND_TIMEOUT_MS, timeoutSignal } from "./http.js";
 import { creditedTo, decodeMemo, MirrorNodeClient } from "./mirror-node.js";
 
 /**
@@ -29,29 +30,57 @@ import { creditedTo, decodeMemo, MirrorNodeClient } from "./mirror-node.js";
  * `setTransactionMemo` → the facilitator submits without touching it → the witness reads the
  * settled transaction back from the mirror node and asserts the memo itself (B §2.3).
  */
+
+/**
+ * `/health` is polled by Fly on a short interval and the answer barely changes between polls, so
+ * the facilitator probe is cached this long. Short enough that a dead Blocky402 is red within
+ * seconds, long enough that a health check never becomes a load generator.
+ */
+const FACILITATOR_PROBE_TTL_MS = 5_000;
+
+export interface X402AdapterOptions {
+  /** Deadline for the facilitator probe and, via the client, for `verify` and `settle`. */
+  timeoutMs?: number;
+  probeTtlMs?: number;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+}
+
 export class X402PaymentAdapter implements PaymentPort {
   private readonly rs: x402ResourceServer;
   private readonly mirror: MirrorNodeClient;
-  private initialized = false;
+  private readonly timeoutMs: number;
+  private readonly probeTtlMs: number;
+  private readonly fetchImpl: typeof fetch;
+  private readonly now: () => number;
+  private probe: { at: number; ok: boolean } | null = null;
 
   constructor(
     private readonly config: WitnessConfig,
     private readonly log: Logger,
     mirror?: MirrorNodeClient,
+    opts: X402AdapterOptions = {},
   ) {
+    this.timeoutMs = opts.timeoutMs ?? OUTBOUND_TIMEOUT_MS;
+    this.probeTtlMs = opts.probeTtlMs ?? FACILITATOR_PROBE_TTL_MS;
+    this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.now = opts.now ?? Date.now;
     this.rs = new x402ResourceServer(
-      new HTTPFacilitatorClient({ url: config.X402_FACILITATOR }),
+      // The client's own default is 30 s per call, which is longer than a runner will wait.
+      new HTTPFacilitatorClient({ url: config.X402_FACILITATOR, timeoutMs: this.timeoutMs }),
     ).register(hederaNetworkGlob(config.X402_NETWORK), new ExactHederaScheme());
-    this.mirror = mirror ?? new MirrorNodeClient({ baseUrl: config.MIRROR_NODE });
+    this.mirror =
+      mirror ?? new MirrorNodeClient({ baseUrl: config.MIRROR_NODE, timeoutMs: this.timeoutMs });
   }
 
   /**
    * Fetches `/supported` and injects `extra.feePayer`. B §2.6: if this fails at boot the witness
-   * must refuse to start — never serve a 402 you cannot settle.
+   * must refuse to start — never serve a 402 you cannot settle. `main.ts` awaits this before it
+   * listens and exits on a throw, so there is no "booted but unusable" state for `health()` to
+   * report; what `health()` has to catch is the facilitator dying *afterwards*.
    */
   async initialize(): Promise<void> {
     await this.rs.initialize();
-    this.initialized = true;
   }
 
   price(): { amount: string; asset: string; network: string } {
@@ -182,8 +211,38 @@ export class X402PaymentAdapter implements PaymentPort {
   }
 
   async health(): Promise<{ facilitator: boolean; mirror: boolean }> {
-    const mirror = await this.mirror.health();
-    return { facilitator: this.initialized, mirror };
+    const [facilitator, mirror] = await Promise.all([
+      this.facilitatorHealth(),
+      this.mirror.health(),
+    ]);
+    return { facilitator, mirror };
+  }
+
+  /**
+   * A live read of `/supported` — the same document `initialize()` consumes — not a flag set once
+   * at boot. A boot flag keeps answering `true` with Blocky402 dead underneath, which is precisely
+   * the failure `/health` exists to catch: Fly would keep routing releases to a machine that can
+   * advertise a 402 it cannot settle. `PROTOCOL §2` fails closed on a red answer, so an
+   * unreachable facilitator is `false`, never "assume fine".
+   */
+  private async facilitatorHealth(): Promise<boolean> {
+    const now = this.now();
+    if (this.probe && now - this.probe.at < this.probeTtlMs) return this.probe.ok;
+    let ok = false;
+    try {
+      const res = await this.fetchImpl(
+        `${this.config.X402_FACILITATOR.replace(/\/+$/, "")}/supported`,
+        {
+          headers: { accept: "application/json" },
+          signal: timeoutSignal(this.timeoutMs),
+        },
+      );
+      ok = res.ok;
+    } catch (err) {
+      this.log.warn({ err }, "facilitator probe failed");
+    }
+    this.probe = { at: now, ok };
+    return ok;
   }
 }
 

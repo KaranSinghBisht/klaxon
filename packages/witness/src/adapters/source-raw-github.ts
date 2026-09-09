@@ -1,4 +1,5 @@
 import { SourceFetchError, type SourcePort, type WorkflowFile } from "../ports/source.js";
+import { OUTBOUND_TIMEOUT_MS, timeoutSignal } from "./http.js";
 
 /**
  * D7 — policy and workflows come from `raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}`,
@@ -13,6 +14,8 @@ export interface RawGithubOptions {
   rawBase?: string;
   apiBase?: string;
   token?: string | undefined;
+  /** Per-call deadline. A GitHub that hangs must read as an outage, not as "policy absent". */
+  timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
 
@@ -20,12 +23,14 @@ export class RawGithubSourceAdapter implements SourcePort {
   private readonly rawBase: string;
   private readonly apiBase: string;
   private readonly token: string | undefined;
+  private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: RawGithubOptions = {}) {
     this.rawBase = (opts.rawBase ?? "https://raw.githubusercontent.com").replace(/\/+$/, "");
     this.apiBase = (opts.apiBase ?? "https://api.github.com").replace(/\/+$/, "");
     this.token = opts.token;
+    this.timeoutMs = opts.timeoutMs ?? OUTBOUND_TIMEOUT_MS;
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
@@ -39,7 +44,10 @@ export class RawGithubSourceAdapter implements SourcePort {
     const url = `${this.rawBase}/${repo}/${sha}/${path}`;
     let res: Response;
     try {
-      res = await this.fetchImpl(url, { headers: this.headers("text/plain") });
+      res = await this.fetchImpl(url, {
+        headers: this.headers("text/plain"),
+        signal: timeoutSignal(this.timeoutMs),
+      });
     } catch (cause) {
       throw new SourceFetchError(`could not reach ${url}`, { notFound: false, cause });
     }
@@ -67,6 +75,7 @@ export class RawGithubSourceAdapter implements SourcePort {
           ...this.headers("application/vnd.github+json"),
           "x-github-api-version": "2022-11-28",
         },
+        signal: timeoutSignal(this.timeoutMs),
       });
     } catch (cause) {
       throw new SourceFetchError("could not list workflows", { notFound: false, cause });

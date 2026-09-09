@@ -67,6 +67,21 @@ export class OutboxRepo {
       .run(error, id);
   }
 
+  /**
+   * Retired. Only the drain writes this, and only after it has spent the row's whole retry budget:
+   * a row that has failed that many times is poison — a deleted topic, a rotated submit key — and
+   * leaving it `pending` at the head of the queue would keep every later `released` and `refused`
+   * off the ledger, which is the one thing the outbox exists to prevent (D23).
+   *
+   * The payload stays in the table. An operator who fixes the topic can replay it by hand; nothing
+   * about the decision is lost, only its consensus timestamp.
+   */
+  markFailed(id: number, error: string): void {
+    this.db
+      .prepare("UPDATE hcs_outbox SET state = 'failed', last_error = ? WHERE id = ?")
+      .run(error, id);
+  }
+
   countByState(state: OutboxRow["state"]): number {
     const row = this.db
       .prepare("SELECT COUNT(*) AS n FROM hcs_outbox WHERE state = ?")
