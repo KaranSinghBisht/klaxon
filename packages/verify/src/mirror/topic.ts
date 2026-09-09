@@ -27,6 +27,12 @@ export interface TopicMessage {
   consensusTimestamp: string;
   sequenceNumber: number;
   chunks: number;
+  /**
+   * The Hedera account that paid for the submission. The topic's submit key is a 1-of-2 KeyList
+   * (PROTOCOL §7), so this is the only public evidence tying the `--witness` account the operator
+   * handed us to the topic they handed us with it.
+   */
+  payerAccountId: string | null;
   json: unknown;
 }
 
@@ -56,6 +62,7 @@ interface Part {
   b64: string;
   ts: string;
   sequence: number;
+  payer: string | null;
 }
 
 function groupKey(m: RawTopicMessage): string {
@@ -89,6 +96,7 @@ export function reassemble(raw: readonly RawTopicMessage[]): TopicRead {
       b64: m.message,
       ts: m.consensus_timestamp,
       sequence: m.sequence_number,
+      payer: m.payer_account_id ?? null,
     };
     if (parts) parts.push(part);
     else groups.set(key, [part]);
@@ -113,6 +121,7 @@ export function reassemble(raw: readonly RawTopicMessage[]): TopicRead {
         consensusTimestamp: last.ts,
         sequenceNumber: last.sequence,
         chunks: parts.length,
+        payerAccountId: last.payer,
         json: JSON.parse(bytes.toString("utf8")),
       });
     } catch (error) {

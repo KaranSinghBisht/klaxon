@@ -159,11 +159,16 @@ export interface RawMessage {
   message: string;
   sequence_number: number;
   topic_id: string;
+  payer_account_id: string;
 }
 
 let sequence = 0;
 
-export function topicMessage(body: unknown, consensusTimestamp: string): RawMessage {
+export function topicMessage(
+  body: unknown,
+  consensusTimestamp: string,
+  payer: string = WITNESS,
+): RawMessage {
   sequence += 1;
   return {
     chunk_info: null,
@@ -171,10 +176,19 @@ export function topicMessage(body: unknown, consensusTimestamp: string): RawMess
     message: Buffer.from(JSON.stringify(body), "utf8").toString("base64"),
     sequence_number: sequence,
     topic_id: TOPIC_ID,
+    payer_account_id: payer,
   };
 }
 
-export function payment(memo: string, consensusTimestamp: string, txId: string): unknown {
+/** The advertised price, which is what an honest runner pays (B §2.2). */
+export const PRICE_TINYBAR = 100000;
+
+export function payment(
+  memo: string,
+  consensusTimestamp: string,
+  txId: string,
+  amount: number = PRICE_TINYBAR,
+): unknown {
   return {
     charged_tx_fee: 246668,
     consensus_timestamp: consensusTimestamp,
@@ -184,8 +198,8 @@ export function payment(memo: string, consensusTimestamp: string, txId: string):
     transaction_id: txId,
     transfers: [
       { account: "0.0.802", amount: 246668, is_approval: false },
-      { account: "0.0.10405046", amount: -100000, is_approval: false },
-      { account: WITNESS, amount: 100000, is_approval: false },
+      { account: "0.0.10405046", amount: -amount, is_approval: false },
+      { account: WITNESS, amount, is_approval: false },
     ],
   };
 }
@@ -245,11 +259,18 @@ export function fakeNetwork(options: {
   return { fetch, calls };
 }
 
+export const OWNER_ADDRESS = "0x00000000219ab540356cbb839cbe05303d7705fa";
+export const ZERO = "0x0000000000000000000000000000000000000000";
+
 export interface FakeRegistryOptions {
   policyHash?: string;
   policyBlockSeconds?: bigint;
   unrevokes?: { epoch: bigint; seconds: bigint }[];
   head?: bigint;
+  /** Emit a `Registered` log in the scanned range. */
+  registered?: boolean;
+  /** Answer `owner(p)` off contract state, the way a real RPC does. */
+  owner?: string;
 }
 
 /** A `RegistryTransport` over canned logs — the chain read with no chain. */
@@ -258,6 +279,19 @@ export function fakeRegistry(options: FakeRegistryOptions = {}): RegistryTranspo
   const policyBlock = head - 1000n;
   const seconds = new Map<bigint, bigint>();
   const logs: RegistryLog[] = [];
+
+  if (options.registered) {
+    const claimBlock = policyBlock - 1n;
+    logs.push({
+      eventName: "Registered",
+      blockNumber: claimBlock,
+      logIndex: 0,
+      transactionHash: "0xc1a1m",
+      projectId: `0x${PROJECT_ID}`,
+      owner: OWNER_ADDRESS,
+    });
+    seconds.set(claimBlock, (options.policyBlockSeconds ?? 1_788_000_000n) - 1n);
+  }
 
   logs.push({
     eventName: "PolicyCommitted",
@@ -287,6 +321,7 @@ export function fakeRegistry(options: FakeRegistryOptions = {}): RegistryTranspo
     getLogs: async ({ fromBlock, toBlock }) =>
       logs.filter((l) => l.blockNumber >= fromBlock && l.blockNumber <= toBlock),
     getBlockTimestamp: async (block) => seconds.get(block) ?? 0n,
+    ...(options.owner ? { readOwner: async () => options.owner as string } : {}),
   };
 }
 

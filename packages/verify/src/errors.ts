@@ -28,7 +28,9 @@ export type FindingCode =
   | "SECRET_NOT_IN_POLICY"
   | "MAX_RELEASES_EXCEEDED"
   | "RELEASE_WHILE_REVOKED"
-  | "REGISTRY_UNAVAILABLE";
+  | "REGISTRY_UNAVAILABLE"
+  // the audited scope itself (PROTOCOL §8)
+  | "PROJECT_NOT_REGISTERED";
 
 export type Severity = "violation" | "unverified";
 

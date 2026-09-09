@@ -21,6 +21,8 @@ const PACKAGE_DIR = fileURLToPath(new URL("..", import.meta.url));
 
 const POLICY_BLOCK = 8_999_000n;
 const HEAD = 9_000_000n;
+/** `owner(p)` — the Ledger address that claimed the project, ABI-encoded as a 32-byte word. */
+const OWNER = "0x00000000219ab540356cbb839cbe05303d7705fa";
 
 /** Stands in for both the mirror node and a Sepolia JSON-RPC, so the CLI test needs no network. */
 function rpcResult(method: string, params: unknown[]): unknown {
@@ -29,6 +31,8 @@ function rpcResult(method: string, params: unknown[]): unknown {
       return numberToHex(11155111);
     case "eth_blockNumber":
       return numberToHex(HEAD);
+    case "eth_call":
+      return `0x${OWNER.slice(2).padStart(64, "0")}`;
     case "eth_getLogs": {
       const filter = params[0] as { fromBlock: string; toBlock: string };
       if (BigInt(filter.fromBlock) > POLICY_BLOCK || BigInt(filter.toBlock) < POLICY_BLOCK)
@@ -90,11 +94,14 @@ beforeAll(async () => {
         const parsed = JSON.parse(body) as
           | { id: number; method: string; params: unknown[] }
           | { id: number; method: string; params: unknown[] }[];
-        const answer = (one: { id: number; method: string; params: unknown[] }) => ({
-          jsonrpc: "2.0",
-          id: one.id,
-          result: rpcResult(one.method, one.params ?? []),
-        });
+        const answer = (one: { id: number; method: string; params: unknown[] }) => {
+          try {
+            return { jsonrpc: "2.0", id: one.id, result: rpcResult(one.method, one.params ?? []) };
+          } catch (error) {
+            // A throw here would escape into the server's request handler and kill the run.
+            return { jsonrpc: "2.0", id: one.id, error: { code: -32601, message: String(error) } };
+          }
+        };
         const out = Array.isArray(parsed) ? parsed.map(answer) : answer(parsed);
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify(out));
@@ -193,6 +200,41 @@ describe("klaxon-verify CLI", () => {
     expect(run.code).toBe(0);
     expect(run.stdout).toContain("VIOLATIONS 0");
     expect(run.stdout).toContain("(1 policy version on Sepolia)");
+    // Exit 0 with nothing checked must not read as exit 0 with everything checked.
+    expect(run.stdout).toContain("NOT CHECKED 7 of 7 rows — this run established nothing");
+    expect(run.stdout).not.toMatch(/0\/0\s+OK/);
+    // The scope the operator supplied, tied to the chain: owner(p) answered off contract state.
+    expect(run.stdout).toContain("project registered");
+    expect(run.stdout).toContain("KlaxonRegistry.owner(p)");
+    // The block abbreviates for the camera; --json carries the address in full, checksummed.
+    expect(run.stdout.toLowerCase()).toContain(OWNER.slice(0, 10));
+    const json = await runCli([...baseArgs(), "--json"]);
+    expect(
+      (JSON.parse(json.stdout) as { scope: { owner: string } }).scope.owner.toLowerCase(),
+    ).toBe(OWNER);
+  });
+
+  it("ignores dust below --price-tinybar and prints the price it assumed", async () => {
+    state.messages = [];
+    state.transactions = [
+      payment("9".repeat(64), "1788848330.000000000", "0.0.999-1788848302-000000003", 1),
+    ];
+    const clean = await runCli(baseArgs());
+    expect(clean.code).toBe(0);
+    expect(clean.stdout).toContain("≥ 100000 tinybar assumed");
+    expect(clean.stdout).toContain("1 smaller credit ignored");
+
+    // The floor is an input: lower it and the same transfer is a payment again.
+    const lowered = await runCli([...baseArgs(), "--price-tinybar", "1"]);
+    expect(lowered.code).toBe(1);
+    expect(lowered.stdout).toContain("WITNESS WITHHELD");
+    expect(lowered.stdout).toContain("≥ 1 tinybar assumed");
+  });
+
+  it("exits 2 on a --price-tinybar that is not a whole number", async () => {
+    const run = await runCli([...baseArgs(), "--price-tinybar", "0.5"]);
+    expect(run.code).toBe(2);
+    expect(run.stderr).toContain("--price-tinybar must be a whole number");
   });
 
   it("exits 1 and names the withheld payment", async () => {

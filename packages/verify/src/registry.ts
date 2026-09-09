@@ -11,13 +11,17 @@ export const LOG_BATCH_BLOCKS = 5000n;
 export const DEFAULT_LOOKBACK_BLOCKS = 100_000n;
 const BLOCK_CONCURRENCY = 4;
 
+export const REGISTERED_EVENT = parseAbiItem("event Registered(bytes32 indexed p, address owner)");
 export const POLICY_COMMITTED_EVENT = parseAbiItem(
   "event PolicyCommitted(bytes32 indexed p, bytes32 hash)",
 );
 export const UNREVOKED_EVENT = parseAbiItem("event Unrevoked(bytes32 indexed p, uint64 epoch)");
+/** `owner(bytes32)` — current state, so it answers however far back the claim was made. */
+export const OWNER_FUNCTION = parseAbiItem("function owner(bytes32) view returns (address)");
+export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export interface RegistryLog {
-  eventName: "PolicyCommitted" | "Unrevoked";
+  eventName: "Registered" | "PolicyCommitted" | "Unrevoked";
   blockNumber: bigint;
   logIndex: number;
   transactionHash: string;
@@ -25,6 +29,8 @@ export interface RegistryLog {
   projectId: string;
   /** `PolicyCommitted` only: the committed policy hash, 0x-prefixed. */
   hash?: string;
+  /** `Registered` only: the Ledger address that claimed the project. */
+  owner?: string;
   /** `Unrevoked` only. */
   epoch?: bigint;
 }
@@ -34,6 +40,11 @@ export interface RegistryTransport {
   getBlockNumber(): Promise<bigint>;
   getLogs(range: { fromBlock: bigint; toBlock: bigint }): Promise<RegistryLog[]>;
   getBlockTimestamp(blockNumber: bigint): Promise<bigint>;
+  /**
+   * Optional: `owner(p)` read straight off contract state. A `Registered` log can fall outside
+   * the scanned block range, so only this can answer "not registered" rather than "not seen".
+   */
+  readOwner?(projectId: string): Promise<string>;
 }
 
 export interface PolicyCommit {
@@ -52,7 +63,17 @@ export interface Unrevoke {
   seconds: bigint;
 }
 
+export interface Registration {
+  kind: "registered";
+  projectId: string;
+  /** The operator's Ledger address — `register` is only ever called from the device (D19). */
+  owner: string;
+  blockNumber: bigint;
+  seconds: bigint;
+}
+
 export interface RegistryTimeline {
+  registrations: Registration[];
   policies: PolicyCommit[];
   unrevokes: Unrevoke[];
   fromBlock: bigint;
@@ -74,26 +95,39 @@ export function viemRegistryTransport(
     async getLogs(range) {
       const logs = await client.getLogs({
         address: address as `0x${string}`,
-        events: [POLICY_COMMITTED_EVENT, UNREVOKED_EVENT],
+        events: [REGISTERED_EVENT, POLICY_COMMITTED_EVENT, UNREVOKED_EVENT],
         fromBlock: range.fromBlock,
         toBlock: range.toBlock,
         strict: true,
       });
-      return logs.map((log) => {
+      return logs.map((log): RegistryLog => {
         const base = {
           blockNumber: log.blockNumber ?? 0n,
           logIndex: log.logIndex ?? 0,
           transactionHash: log.transactionHash ?? "",
           projectId: String(log.args.p),
         };
-        return log.eventName === "PolicyCommitted"
-          ? { ...base, eventName: "PolicyCommitted" as const, hash: String(log.args.hash) }
-          : { ...base, eventName: "Unrevoked" as const, epoch: BigInt(log.args.epoch) };
+        if (log.eventName === "PolicyCommitted") {
+          return { ...base, eventName: "PolicyCommitted", hash: String(log.args.hash) };
+        }
+        if (log.eventName === "Registered") {
+          return { ...base, eventName: "Registered", owner: String(log.args.owner) };
+        }
+        return { ...base, eventName: "Unrevoked", epoch: BigInt(log.args.epoch) };
       });
     },
     async getBlockTimestamp(blockNumber) {
       const block = await client.getBlock({ blockNumber });
       return block.timestamp;
+    },
+    async readOwner(projectId) {
+      const value = await client.readContract({
+        address: address as `0x${string}`,
+        abi: [OWNER_FUNCTION],
+        functionName: "owner",
+        args: [`0x${normalizeProjectId(projectId)}` as `0x${string}`],
+      });
+      return String(value);
     },
   };
 }
@@ -139,14 +173,24 @@ export async function readRegistryTimeline(
     seconds.set(block, times[i] ?? 0n);
   });
 
+  const registrations: Registration[] = [];
   const policies: PolicyCommit[] = [];
   const unrevokes: Unrevoke[] = [];
   for (const log of logs) {
     const at = seconds.get(log.blockNumber) ?? 0n;
-    if (log.eventName === "PolicyCommitted") {
+    const projectId = normalizeProjectId(log.projectId);
+    if (log.eventName === "Registered") {
+      registrations.push({
+        kind: "registered",
+        projectId,
+        owner: log.owner ?? ZERO_ADDRESS,
+        blockNumber: log.blockNumber,
+        seconds: at,
+      });
+    } else if (log.eventName === "PolicyCommitted") {
       policies.push({
         kind: "policy",
-        projectId: normalizeProjectId(log.projectId),
+        projectId,
         hash: normalizeProjectId(log.hash ?? ""),
         blockNumber: log.blockNumber,
         seconds: at,
@@ -154,16 +198,26 @@ export async function readRegistryTimeline(
     } else {
       unrevokes.push({
         kind: "unrevoke",
-        projectId: normalizeProjectId(log.projectId),
+        projectId,
         epoch: log.epoch ?? 0n,
         blockNumber: log.blockNumber,
         seconds: at,
       });
     }
   }
+  registrations.sort((a, b) => Number(a.blockNumber - b.blockNumber));
   policies.sort((a, b) => Number(a.blockNumber - b.blockNumber));
   unrevokes.sort((a, b) => Number(a.blockNumber - b.blockNumber));
-  return { policies, unrevokes, fromBlock: from, toBlock: head };
+  return { registrations, policies, unrevokes, fromBlock: from, toBlock: head };
+}
+
+/** `register` is first-write-wins, so the first `Registered` in range is the claim. */
+export function registrationOf(
+  timeline: RegistryTimeline,
+  projectId: string,
+): Registration | undefined {
+  const p = normalizeProjectId(projectId);
+  return timeline.registrations.find((e) => e.projectId === p);
 }
 
 /** The policy hash in force for `projectId` at `seconds` — the latest commit at or before it. */

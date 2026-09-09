@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import { VerifyInfraError, VerifyUsageError } from "./errors.js";
 import { verify } from "./index.js";
 import { DEFAULT_MIRROR_URL } from "./mirror/client.js";
+import { DEFAULT_PRICE_TINYBAR } from "./mirror/payments.js";
 import { DEFAULT_GRACE_SECONDS } from "./pair.js";
 import { DEFAULT_SEPOLIA_RPC } from "./registry.js";
 import { exitCodeFor, renderHuman } from "./report.js";
@@ -16,11 +17,16 @@ const USAGE = `klaxon-verify — re-derive a KLAXON release history from public 
   --registry <0x…>     KlaxonRegistry on Sepolia                    (required)
   --rpc <url>          Sepolia JSON-RPC        (default ${DEFAULT_SEPOLIA_RPC})
   --mirror <url>       Hedera mirror node      (default ${DEFAULT_MIRROR_URL})
-  --since <s.n>        Only read from this consensus timestamp on
+  --since <s.n>        Only judge payments from this consensus timestamp on
   --from-block <n>     First Sepolia block to scan for registry events
   --grace <seconds>    Silence tolerated before WITHHELD (default ${DEFAULT_GRACE_SECONDS})
+  --price-tinybar <n>  Smallest credit that counts as a payment (default ${DEFAULT_PRICE_TINYBAR})
   --json               Emit the machine-readable report instead of the block
   --help               This text
+
+The price is the one number here that is not on a public ledger: it is published only in the
+witness's own manifest, so it is assumed rather than re-derived, and the report prints the value
+used. Below it, anyone could send dust with a 64-hex memo and manufacture a WITNESS WITHHELD.
 
 Exit codes: 0 clean · 1 violations found · 2 the read could not complete.
 `;
@@ -55,6 +61,10 @@ async function main(): Promise<void> {
 
   const grace = values.grace === undefined ? DEFAULT_GRACE_SECONDS : Number(values.grace);
   if (!Number.isFinite(grace) || grace < 0) fail(`--grace must be a non-negative number`, 2);
+  const price = values["price-tinybar"];
+  if (price !== undefined && !/^\d+$/.test(price)) {
+    fail("--price-tinybar must be a whole number of tinybar", 2);
+  }
   const fromBlock = values["from-block"] === undefined ? undefined : BigInt(values["from-block"]);
 
   const report = await verify({
@@ -65,6 +75,7 @@ async function main(): Promise<void> {
     ...(values.mirror ? { mirrorUrl: values.mirror } : {}),
     ...(values.since ? { sinceTimestamp: values.since } : {}),
     ...(fromBlock !== undefined ? { fromBlock } : {}),
+    ...(price !== undefined ? { priceTinybar: BigInt(price) } : {}),
     graceSeconds: grace,
   });
 
@@ -83,6 +94,7 @@ const OPTIONS = {
   since: { type: "string" },
   "from-block": { type: "string" },
   grace: { type: "string" },
+  "price-tinybar": { type: "string" },
   json: { type: "boolean", default: false },
   help: { type: "boolean", short: "h", default: false },
 } as const;

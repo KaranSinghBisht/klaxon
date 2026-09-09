@@ -83,6 +83,7 @@ async function run(
     policyStatus?: number;
     registry?: ReturnType<typeof fakeRegistry>;
     paginate?: boolean;
+    priceTinybar?: bigint;
   } = {},
 ): Promise<VerifyReport> {
   const net = fakeNetwork({
@@ -100,6 +101,7 @@ async function run(
       mirrorUrl: "https://mirror.example",
       graceSeconds: 30,
       now: NOW,
+      ...(overrides.priceTinybar !== undefined ? { priceTinybar: overrides.priceTinybar } : {}),
     },
     {
       fetch: net.fetch,
@@ -327,6 +329,21 @@ describe("verify end to end", () => {
     expect(report.tallies.jwts_via_snapshot).toBe(1);
     expect(report.tallies.snapshot_timestamps).toEqual(["1788848300.000000000"]);
     expect(report.violations).toBe(0);
+
+    // The mitigation is real but partial: the keys came from the audited party's own topic. A
+    // reader must be able to see exactly which verifications leaned on them, not just how many.
+    const text = renderHuman(report);
+    expect(text).toContain("SNAPSHOT FALLBACK 1");
+    expect(text).toContain("verified against keys the witness published, not GitHub");
+    expect(text).toContain("via witness snapshot");
+    const snapshotted = report.attempts.find((a) => a.jwt.source === "snapshot");
+    expect(text).toContain(`h=${(snapshotted?.h ?? "").slice(0, 12)}…`);
+  });
+
+  it("says nothing about a snapshot fallback when the live key set answered", async () => {
+    const text = renderHuman(await run(await baseline()));
+    expect(text).not.toContain("SNAPSHOT FALLBACK");
+    expect(text).toContain("(2 live JWKS)");
   });
 
   it("reports an incomplete chunk group without calling it withheld", async () => {
@@ -352,6 +369,86 @@ describe("verify end to end", () => {
     expect(incomplete?.severity).toBe("unverified");
     // The payment now looks unanswered, which it is — but the incomplete group says why.
     expect(report.counts.withheld).toBe(1);
+  });
+
+  it("cannot be made to cry WITNESS WITHHELD by a stranger sending dust", async () => {
+    // The attack in full: the witness account id is published in the manifest, so anyone can send
+    // it one tinybar memo'd with a hash the witness has never seen and never will answer.
+    const built = await baseline();
+    const report = await run(built, {
+      transactions: [
+        ...built.transactions.slice(0, 2),
+        payment("f".repeat(64), "1788848340.000000000", "0.0.999-1788848340-000000001", 1),
+      ],
+    });
+
+    expect(report.counts.payments_found).toBe(2);
+    expect(report.counts.below_price).toBe(1);
+    expect(report.counts.withheld).toBe(0);
+    expect(report.findings.map((f) => f.code)).not.toContain("WITNESS_WITHHELD");
+    expect(report.violations).toBe(0);
+    expect(exitCodeFor(report)).toBe(0);
+  });
+
+  it("prints the price it assumed, because that price is not on any ledger", async () => {
+    const built = await baseline();
+    const report = await run(built, { transactions: built.transactions.slice(0, 2) });
+    expect(report.price_tinybar).toBe("100000");
+    expect(renderHuman(report)).toContain("≥ 100000 tinybar assumed");
+  });
+
+  it("treats the dust as a payment once the operator lowers the price", async () => {
+    const built = await baseline();
+    const report = await run(built, {
+      priceTinybar: 1n,
+      transactions: [
+        ...built.transactions.slice(0, 2),
+        payment("f".repeat(64), "1788848340.000000000", "0.0.999-1788848340-000000001", 1),
+      ],
+    });
+    expect(report.counts.payments_found).toBe(3);
+    expect(report.counts.below_price).toBe(0);
+    expect(report.findings.map((f) => f.code)).toContain("WITNESS_WITHHELD");
+  });
+
+  it("does not print a green block for a run that checked nothing", async () => {
+    const built = await baseline();
+    const report = await run(built, { messages: [], transactions: [] });
+    const text = renderHuman(report);
+
+    expect(report.violations).toBe(0);
+    expect(report.checks).toEqual({ rows: 7, not_checked: 7 });
+    // `0/0 OK` was the whole problem: a private repo, an all-refused topic or a missing registry
+    // all emptied every denominator and still printed a clean block.
+    expect(text).not.toMatch(/0\/0\s+OK/);
+    expect(text).toContain("NOT CHECKED 7 of 7 rows — this run established nothing");
+  });
+
+  it("counts the rows an all-refused topic never asked", async () => {
+    const built = await baseline();
+    const report = await run(built, {
+      messages: [built.messages[1]],
+      transactions: [built.transactions[1]],
+    });
+    // The policy rows are scoped to `released`, and there is no release to spend a budget.
+    expect(report.tallies.policy_matched).toEqual({ passed: 0, total: 0 });
+    expect(report.max_releases.checked).toBe(false);
+    expect(report.checks.not_checked).toBe(3);
+    expect(renderHuman(report)).toContain("NOT CHECKED 3 of 7 rows");
+  });
+
+  it("claims no more for the withheld row than pairing establishes", async () => {
+    const built = await baseline();
+    const answered = renderHuman(
+      await run(built, { transactions: built.transactions.slice(0, 2) }),
+    );
+    // Not "OK": pairing says every settled payment drew an answer, and nothing about a secret
+    // released with no payment behind it or one published after a refusal.
+    expect(answered).toMatch(/withheld\s+0\s+every payment answered/);
+    expect(answered).not.toMatch(/withheld\s+0\s+OK/);
+
+    const nothing = renderHuman(await run(built, { messages: [], transactions: [] }));
+    expect(nothing).toMatch(/withheld\s+0\s+NOT CHECKED/);
   });
 
   it("renders the block from Appendix A §6.6", async () => {

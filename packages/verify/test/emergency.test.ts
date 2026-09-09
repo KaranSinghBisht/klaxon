@@ -142,4 +142,40 @@ describe("PROTOCOL §7 emergency recoveries", () => {
     expect(text).toMatch(/emergency\s+1/);
     expect(text).toContain("WITNESS WITHHELD");
   });
+
+  it("does not report a documented --no-pay recovery as a release nobody paid for", async () => {
+    // `klaxon emergency --no-pay` is a break-glass path with no payment by design (PROTOCOL §7).
+    // A documented feature must not turn the honest report red.
+    const report = await run({ messages: [noPay()], transactions: [] });
+
+    expect(report.counts.emergency_unpaid).toBe(1);
+    expect(report.counts.orphan_messages).toBe(0);
+    expect(report.findings.map((f) => f.code)).not.toContain("RELEASE_WITHOUT_PAYMENT");
+    expect(report.violations).toBe(0);
+    expect(exitCodeFor(report)).toBe(0);
+  });
+
+  it("gives the --no-pay recovery its own line rather than dropping it", async () => {
+    const text = renderHuman(await run({ messages: [noPay()], transactions: [] }));
+    expect(text).toMatch(/emergency --no-pay\s+1/);
+    expect(text).toContain("no payment by design");
+  });
 });
+
+/** The same recovery the fixture carries, minus the `pay_tx` — what `--no-pay` publishes. */
+function noPay(): unknown {
+  const paired = fixture.messages[0] as { message: string; consensus_timestamp: string };
+  const body = JSON.parse(Buffer.from(paired.message, "base64").toString("utf8")) as Record<
+    string,
+    unknown
+  >;
+  delete body.pay_tx;
+  return {
+    chunk_info: null,
+    consensus_timestamp: paired.consensus_timestamp,
+    message: Buffer.from(JSON.stringify(body), "utf8").toString("base64"),
+    sequence_number: 77,
+    topic_id: TOPIC_ID,
+    payer_account_id: WITNESS,
+  };
+}

@@ -8,7 +8,7 @@ import {
   MirrorClient,
   type MirrorClientOptions,
 } from "./mirror/client.js";
-import { readPayments } from "./mirror/payments.js";
+import { DEFAULT_PRICE_TINYBAR, readPayments } from "./mirror/payments.js";
 import { readTopic } from "./mirror/topic.js";
 import { DEFAULT_GRACE_SECONDS, pairPayments } from "./pair.js";
 import { PolicyCache } from "./policy.js";
@@ -21,6 +21,8 @@ import {
   viemRegistryTransport,
 } from "./registry.js";
 import { buildReport, type VerifyReport } from "./report.js";
+import { checkScope } from "./scope.js";
+import { formatTs, parseTs } from "./timestamp.js";
 
 export interface VerifyOptions {
   topicId: string;
@@ -29,12 +31,26 @@ export interface VerifyOptions {
   registryAddress?: string;
   mirrorUrl?: string;
   rpcUrl?: string;
-  /** Hedera `seconds.nanos`; bounds both the topic read and the payment read. */
+  /** Hedera `seconds.nanos`; the first payment this run will judge. */
   sinceTimestamp?: string;
   graceSeconds?: number;
+  /** Smallest credit to the witness that counts as a payment. Defaults to the advertised price. */
+  priceTinybar?: bigint;
   fromBlock?: bigint;
   /** Injected in tests so the grace window and the report header are deterministic. */
   now?: Date;
+}
+
+/**
+ * A payment settles, and its release reaches consensus a moment later. With one cutoff for both
+ * reads, a pair straddling it loses its payment and the release is reported as one nobody paid
+ * for. So the payment read starts a grace window further back than `--since`; those earlier
+ * payments exist only to claim their answers and are not themselves audited (see `pair.ts`).
+ */
+function paymentsSince(since: string, seconds: number): string {
+  const [s, n] = parseTs(since);
+  const back = BigInt(Math.trunc(seconds));
+  return formatTs([s > back ? s - back : 0n, n]);
 }
 
 export interface VerifyTransports {
@@ -69,8 +85,13 @@ export async function verify(
     );
   }
 
+  if (options.priceTinybar !== undefined && options.priceTinybar < 0n) {
+    throw new VerifyUsageError(`--price-tinybar must not be negative, got ${options.priceTinybar}`);
+  }
+
   const mirrorUrl = options.mirrorUrl ?? DEFAULT_MIRROR_URL;
   const graceSeconds = options.graceSeconds ?? DEFAULT_GRACE_SECONDS;
+  const priceTinybar = options.priceTinybar ?? DEFAULT_PRICE_TINYBAR;
   const now = options.now ?? new Date();
   const mirror =
     transports.mirror ??
@@ -80,9 +101,13 @@ export async function verify(
       ...transports.mirrorOptions,
     });
 
+  const lookback = Math.max(graceSeconds, DEFAULT_GRACE_SECONDS);
+  const paymentsFrom = options.sinceTimestamp
+    ? paymentsSince(options.sinceTimestamp, lookback)
+    : undefined;
   const [topic, payments] = await Promise.all([
     readTopic(mirror, options.topicId, options.sinceTimestamp),
-    readPayments(mirror, options.witnessAccount, options.sinceTimestamp),
+    readPayments(mirror, options.witnessAccount, paymentsFrom, priceTinybar),
   ]);
 
   const findings: Finding[] = [];
@@ -106,12 +131,17 @@ export async function verify(
   const parsed = parseEnvelopes(topic.messages);
   findings.push(...parsed.findings);
 
-  const paired = pairPayments(payments, parsed.attempts, { graceSeconds, now });
+  const paired = pairPayments(payments.payments, parsed.attempts, {
+    graceSeconds,
+    now,
+    ...(options.sinceTimestamp ? { auditFrom: options.sinceTimestamp } : {}),
+  });
   findings.push(...paired.findings);
 
   let timeline: RegistryTimeline | null = null;
+  let registry: RegistryTransport | null = null;
   if (options.registryAddress) {
-    const registry =
+    registry =
       transports.registry ??
       viemRegistryTransport(options.registryAddress, options.rpcUrl ?? DEFAULT_SEPOLIA_RPC);
     timeline = await readRegistryTimeline(registry, {
@@ -149,6 +179,7 @@ export async function verify(
   const projectIds = [
     ...new Set([
       ...checked.attempts.map((a) => a.projectId),
+      ...paired.unpaidEmergencies.map((e) => e.projectId),
       ...parsed.revokes.map((r) => r.projectId),
       ...parsed.unrevokes.map((u) => u.projectId),
       ...parsed.jwks.map((j) => j.projectId),
@@ -160,6 +191,17 @@ export async function verify(
   const policyVersions =
     timeline && firstProject ? policyVersionCount(timeline, firstProject) : null;
 
+  const scoped = await checkScope({
+    witnessAccount: options.witnessAccount,
+    projectIds,
+    topicSubmitters: topic.messages
+      .map((m) => m.payerAccountId)
+      .filter((p): p is string => p !== null),
+    timeline,
+    transport: registry,
+  });
+  findings.push(...scoped.findings);
+
   return buildReport({
     topicId: options.topicId,
     witnessAccount: options.witnessAccount,
@@ -167,14 +209,18 @@ export async function verify(
     mirrorUrl,
     rpcUrl: options.registryAddress ? (options.rpcUrl ?? DEFAULT_SEPOLIA_RPC) : null,
     graceSeconds,
+    priceTinybar,
     sinceTimestamp: options.sinceTimestamp ?? null,
     generatedAt: now.toISOString(),
     pairs: paired.pairs,
     orphans: paired.orphans.length,
+    unpaidEmergencies: paired.unpaidEmergencies.length,
+    belowPrice: payments.belowPrice,
     incomplete: topic.incomplete.length,
     attempts: checked.attempts,
     maxReleases: checked.maxReleases,
     policyVersions,
+    scope: scoped.scope,
     findings,
   });
 }
@@ -190,9 +236,16 @@ export {
 } from "./errors.js";
 export { type JwksSnapshot, verifyAtTime, verifyLive } from "./jwks.js";
 export { MirrorClient } from "./mirror/client.js";
-export { type Payment, readPayments, selectPayments, toDashedTxId } from "./mirror/payments.js";
+export {
+  DEFAULT_PRICE_TINYBAR,
+  type Payment,
+  readPayments,
+  selectPayments,
+  toDashedTxId,
+} from "./mirror/payments.js";
 export { readTopic, reassemble, type TopicMessage } from "./mirror/topic.js";
 export { DEFAULT_GRACE_SECONDS, pairPayments } from "./pair.js";
 export { fetchPolicyAt, PolicyCache } from "./policy.js";
 export { readRegistryTimeline, viemRegistryTransport } from "./registry.js";
 export { buildReport, exitCodeFor, renderHuman, type VerifyReport } from "./report.js";
+export { checkScope, type Scope } from "./scope.js";

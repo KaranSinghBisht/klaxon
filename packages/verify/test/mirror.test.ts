@@ -165,12 +165,41 @@ describe("payments", () => {
   });
 
   it("keeps only settled transfers that credit the witness and carry a commitment memo", () => {
-    const payments = selectPayments(raw.transactions, "0.0.4820");
+    const { payments } = selectPayments(raw.transactions, "0.0.4820");
     expect(payments.map((p) => p.memo)).toEqual(["1".repeat(64), "2".repeat(64)]);
     expect(payments[0]?.amount).toBe(100000n);
     expect(payments[0]?.transactionId).toBe("0.0.7162784-1788848300-493972399");
     // The `@`-form id from the mirror is normalised on the way in.
     expect(payments[1]?.transactionId).toBe("0.0.7162784-1788848304-000000004");
+  });
+
+  it("ignores dust, so a stranger cannot manufacture a WITNESS WITHHELD for one tinybar", () => {
+    // Exactly the attack: a successful transfer to the published witness account, carrying a
+    // 64-hex memo nobody will ever answer, for a credit of 1 tinybar.
+    const dust = {
+      consensus_timestamp: "1788848315.000000000",
+      memo_base64: Buffer.from("f".repeat(64), "utf8").toString("base64"),
+      name: "CRYPTOTRANSFER",
+      result: "SUCCESS",
+      transaction_id: "0.0.999-1788848315-000000001",
+      transfers: [
+        { account: "0.0.999", amount: -1, is_approval: false },
+        { account: "0.0.4820", amount: 1, is_approval: false },
+      ],
+    };
+    const read = selectPayments([...raw.transactions, dust], "0.0.4820");
+    expect(read.payments.map((p) => p.memo)).toEqual(["1".repeat(64), "2".repeat(64)]);
+    expect(read.belowPrice).toBe(1);
+
+    // The floor is an input, not a constant baked into the audit.
+    const cheap = selectPayments([...raw.transactions, dust], "0.0.4820", 1n);
+    expect(cheap.payments).toHaveLength(3);
+    expect(cheap.belowPrice).toBe(0);
+  });
+
+  it("keeps a payment that credits exactly the price", () => {
+    const { payments } = selectPayments(raw.transactions, "0.0.4820", 100000n);
+    expect(payments).toHaveLength(2);
   });
 
   it("builds the documented query", () => {
@@ -184,7 +213,7 @@ describe("payments", () => {
       baseUrl: "https://mirror.example",
       fetch: async () => new Response(JSON.stringify(raw), { status: 200 }),
     });
-    const payments = await readPayments(client, "0.0.4820");
+    const { payments } = await readPayments(client, "0.0.4820");
     expect(payments).toHaveLength(2);
   });
 });

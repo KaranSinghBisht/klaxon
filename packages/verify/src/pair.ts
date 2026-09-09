@@ -21,6 +21,8 @@ export interface PairResult {
   pairs: Pairing[];
   /** `released`/`refused` messages whose `pay_tx` matched no settled payment in the window. */
   orphans: AttemptRecord[];
+  /** `emergency --no-pay` recoveries: documented to leave no payment, so never paired. */
+  unpaidEmergencies: AttemptRecord[];
   findings: Finding[];
 }
 
@@ -28,6 +30,13 @@ export interface PairOptions {
   graceSeconds?: number;
   /** Wall clock; injected in tests so the grace window is deterministic. */
   now?: Date;
+  /**
+   * `--since`. Payments that settled before it are read only so that the messages answering them
+   * still find a payment; they are outside the audited window and are neither reported nor
+   * judged. Without that, a payment on one side of the cutoff and its release on the other looks
+   * like a release nobody paid for.
+   */
+  auditFrom?: string;
 }
 
 /**
@@ -45,10 +54,19 @@ export function pairPayments(
 ): PairResult {
   const grace = options.graceSeconds ?? DEFAULT_GRACE_SECONDS;
   const now = nowTs(options.now ?? new Date());
+  const auditFrom = options.auditFrom ? parseTs(options.auditFrom) : null;
   const findings: Finding[] = [];
 
   const byPayment = new Map<string, AttemptRecord[]>();
+  const unpaidEmergencies: AttemptRecord[] = [];
   for (const attempt of attempts) {
+    // `klaxon emergency --no-pay` is a documented break-glass path (PROTOCOL §7): it deliberately
+    // leaves no on-chain payment, so there is nothing to pair it against. It gets its own line in
+    // the report rather than being blamed on the witness as a release nobody paid for.
+    if (attempt.type === "emergency" && attempt.payTx === "") {
+      unpaidEmergencies.push(attempt);
+      continue;
+    }
     const list = byPayment.get(attempt.payTxKey);
     if (list) list.push(attempt);
     else byPayment.set(attempt.payTxKey, [attempt]);
@@ -60,6 +78,8 @@ export function pairPayments(
   for (const payment of payments) {
     const key = txIdKey(payment.transactionId);
     claimed.add(key);
+    // Read only to claim its answer: this payment settled before `--since` and is out of scope.
+    if (auditFrom && cmpTs(parseTs(payment.consensusTimestamp), auditFrom) < 0) continue;
     const matched = byPayment.get(key) ?? [];
     const released = matched.filter((m) => m.type === "released");
     const refused = matched.filter((m) => m.type === "refused");
@@ -114,14 +134,12 @@ export function pairPayments(
       findings.push(
         finding(
           "RELEASE_WITHOUT_PAYMENT",
-          attempt.payTx === ""
-            ? `${attempt.type} ${attempt.h} carries no pay_tx — the recovery left no on-chain record`
-            : `${attempt.type} ${attempt.h} cites pay_tx ${attempt.payTx}, which is not a settled transfer to the witness in the scanned window`,
+          `${attempt.type} ${attempt.h} cites pay_tx ${attempt.payTx}, which is not a settled transfer to the witness in the scanned window`,
           { h: attempt.h, pay_tx: attempt.payTx, at: attempt.consensusTimestamp },
         ),
       );
     }
   }
 
-  return { pairs, orphans, findings };
+  return { pairs, orphans, unpaidEmergencies, findings };
 }
