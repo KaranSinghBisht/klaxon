@@ -72488,7 +72488,7 @@ var require_src2 = __commonJS({
     var Protobuf = require_protobufjs();
     var descriptor = require_descriptor2();
     var util_1 = require_util11();
-    var Long2 = require_umd();
+    var Long2 = require_umd2();
     exports2.Long = Long2;
     function isAnyExtension(obj) {
       return "@type" in obj && typeof obj["@type"] === "string";
@@ -110384,6 +110384,7 @@ function getIDToken(aud) {
 
 // ../core/dist/index.js
 var import_crypto = require("crypto");
+var import_crypto2 = require("crypto");
 
 // ../../node_modules/.pnpm/zod@4.5.4/node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -129252,7 +129253,6 @@ function date4(params) {
 }
 
 // ../core/dist/index.js
-var import_crypto2 = require("crypto");
 var import_crypto3 = require("crypto");
 var import_crypto4 = require("crypto");
 var import_crypto5 = require("crypto");
@@ -129306,6 +129306,50 @@ function sha256(data) {
 function digestHex(value) {
   return sha256(canonicalize(value)).toString("hex");
 }
+var b64u = {
+  encode(bytes3) {
+    return Buffer.from(bytes3).toString("base64url");
+  },
+  decode(s32) {
+    return Buffer.from(s32, "base64url");
+  }
+};
+var hex3 = {
+  encode(bytes3) {
+    return Buffer.from(bytes3).toString("hex");
+  },
+  decode(s32) {
+    const clean = s32.startsWith("0x") ? s32.slice(2) : s32;
+    if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(clean)) {
+      throw new KlaxonError("KEY_BAD_LENGTH", "invalid hex");
+    }
+    return Buffer.from(clean, "hex");
+  }
+};
+var utf8 = {
+  encode(s32) {
+    return Buffer.from(s32, "utf8");
+  },
+  decode(bytes3) {
+    return Buffer.from(bytes3).toString("utf8");
+  }
+};
+function ctEqual(a25, b6) {
+  if (a25.length !== b6.length) return false;
+  return (0, import_crypto2.timingSafeEqual)(a25, b6);
+}
+function assertLength(bytes3, expected, what) {
+  if (bytes3.length !== expected) {
+    throw new KlaxonError(
+      "KEY_BAD_LENGTH",
+      `${what} must be ${expected} bytes, got ${bytes3.length}`
+    );
+  }
+}
+var SEC1_PREFIX = Buffer.from("302e0201010420", "hex");
+var SEC1_SUFFIX = Buffer.from("a00706052b8104000a", "hex");
+var SPKI_PREFIX = Buffer.from("3036301006072a8648ce3d020106052b8104000a032200", "hex");
+var SECP256K1_N = BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
 var HEX64 = /^[0-9a-f]{64}$/;
 var B64U = /^[A-Za-z0-9_-]+$/;
 var DIGITS = /^[0-9]+$/;
@@ -129383,46 +129427,6 @@ function oidcAudience(hHex) {
   return `klaxon:${hHex}`;
 }
 var PROBE_AUDIENCE = "klaxon:probe";
-var b64u = {
-  encode(bytes3) {
-    return Buffer.from(bytes3).toString("base64url");
-  },
-  decode(s32) {
-    return Buffer.from(s32, "base64url");
-  }
-};
-var hex3 = {
-  encode(bytes3) {
-    return Buffer.from(bytes3).toString("hex");
-  },
-  decode(s32) {
-    const clean = s32.startsWith("0x") ? s32.slice(2) : s32;
-    if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(clean)) {
-      throw new KlaxonError("KEY_BAD_LENGTH", "invalid hex");
-    }
-    return Buffer.from(clean, "hex");
-  }
-};
-var utf8 = {
-  encode(s32) {
-    return Buffer.from(s32, "utf8");
-  },
-  decode(bytes3) {
-    return Buffer.from(bytes3).toString("utf8");
-  }
-};
-function ctEqual(a25, b6) {
-  if (a25.length !== b6.length) return false;
-  return (0, import_crypto3.timingSafeEqual)(a25, b6);
-}
-function assertLength(bytes3, expected, what) {
-  if (bytes3.length !== expected) {
-    throw new KlaxonError(
-      "KEY_BAD_LENGTH",
-      `${what} must be ${expected} bytes, got ${bytes3.length}`
-    );
-  }
-}
 var IV_BYTES = 12;
 var TAG_BYTES = 16;
 function openSecret(dk, blob, aad) {
@@ -129431,7 +129435,7 @@ function openSecret(dk, blob, aad) {
   const tag = b64u.decode(blob.tag);
   assertLength(iv, IV_BYTES, "iv");
   assertLength(tag, TAG_BYTES, "tag");
-  const decipher = (0, import_crypto2.createDecipheriv)("aes-256-gcm", dk, iv);
+  const decipher = (0, import_crypto3.createDecipheriv)("aes-256-gcm", dk, iv);
   decipher.setAAD(utf8.encode(canonicalize(aad)));
   decipher.setAuthTag(tag);
   try {
@@ -129589,9 +129593,6 @@ function decodeMember(input2) {
   }
   return parsed.data;
 }
-var SEC1_PREFIX = Buffer.from("302e0201010420", "hex");
-var SEC1_SUFFIX = Buffer.from("a00706052b8104000a", "hex");
-var SPKI_PREFIX = Buffer.from("3036301006072a8648ce3d020106052b8104000a032200", "hex");
 var noDevice = (() => {
   throw new KlaxonError("LKRP_NO_DEVICE", "no hardware device on this host");
 });
@@ -137680,7 +137681,7 @@ function wrapConstructor(hashCons) {
   hashC.create = () => hashCons();
   return hashC;
 }
-function randomBytes2(bytesLength = 32) {
+function randomBytes(bytesLength = 32) {
   if (crypto4 && typeof crypto4.getRandomValues === "function") {
     return crypto4.getRandomValues(new Uint8Array(bytesLength));
   }
@@ -139540,7 +139541,7 @@ function weierstrass(curveDef) {
   function prepSig(msgHash, privateKey, opts = defaultSigOpts) {
     if (["recovered", "canonical"].some((k3) => k3 in opts))
       throw new Error("sign() legacy options not supported");
-    const { hash: hash3, randomBytes: randomBytes4 } = CURVE;
+    const { hash: hash3, randomBytes: randomBytes3 } = CURVE;
     let { lowS, prehash, extraEntropy: ent } = opts;
     if (lowS == null)
       lowS = true;
@@ -139552,7 +139553,7 @@ function weierstrass(curveDef) {
     const d25 = normPrivateKeyToScalar(privateKey);
     const seedArgs = [int2octets(d25), int2octets(h1int)];
     if (ent != null && ent !== false) {
-      const e50 = ent === true ? randomBytes4(Fp.BYTES) : ent;
+      const e50 = ent === true ? randomBytes3(Fp.BYTES) : ent;
       seedArgs.push(ensureBytes("extraEntropy", e50));
     }
     const seed = concatBytes2(...seedArgs);
@@ -139656,7 +139657,7 @@ function getHash(hash3) {
   return {
     hash: hash3,
     hmac: (key, ...msgs) => hmac(hash3, key, concatBytes(...msgs)),
-    randomBytes: randomBytes2
+    randomBytes
   };
 }
 function createCurve(curveDef, defHash) {
@@ -140362,13 +140363,13 @@ function fromBytes2(data) {
     publicKey
   };
 }
-function sign2(keydata, message) {
+function sign(keydata, message) {
   const msg = encode3(message);
   const data = decode3(keccak256(`0x${msg}`));
   const signature = secp256k1.sign(data, keydata);
   return signature.toCompactRawBytes();
 }
-function verify2(keydata, message, signature) {
+function verify(keydata, message, signature) {
   const msg = encode3(message);
   const data = decode3(keccak256(`0x${msg}`));
   const r47 = BigInt("0x" + encode3(signature.subarray(0, 32)));
@@ -140494,7 +140495,7 @@ var EcdsaPublicKey = class _EcdsaPublicKey extends Key {
    * @returns {boolean}
    */
   verify(message, signature) {
-    return verify2(this._keyData, message, signature);
+    return verify(this._keyData, message, signature);
   }
   /**
    * @returns {Uint8Array}
@@ -140657,7 +140658,7 @@ var EcdsaPrivateKey = class _EcdsaPrivateKey {
    * @returns {Uint8Array} - The signature bytes without the message
    */
   sign(bytes3) {
-    return sign2(this._keyPair.privateKey, bytes3);
+    return sign(this._keyPair.privateKey, bytes3);
   }
   /**
    * @returns {Uint8Array}
@@ -166544,17 +166545,21 @@ async function run(deps) {
     const maxTinybars = c22.getInput("max-tinybars") || DEFAULT_MAX_TINYBARS;
     const enc = loadEncFile(deps.readEnc, name);
     transport = await deps.buildTransport({ witness, payAccount, payKey, maxTinybars });
-    const released = await deps.getSecret({
-      enc,
-      member,
-      // `h` is only known after `C` is built, so the token is minted through this callback (D18).
-      oidc: (audience) => c22.getIDToken(audience),
-      transport,
-      restore: deps.restore
-    });
+    let released;
+    try {
+      released = await deps.getSecret({
+        enc,
+        member,
+        // `h` is only known after `C` is built, so the token is minted through this callback (D18).
+        oidc: (audience) => c22.getIDToken(audience),
+        transport,
+        restore: deps.restore
+      });
+    } finally {
+      emitGithubMasks(deps.writeLine);
+    }
     const value = released.secret.toString("utf8");
     c22.setSecret(value);
-    emitGithubMasks(deps.writeLine);
     c22.setOutput("value", value);
     c22.saveState(STATE_COMMITMENT, released.h);
     c22.saveState(STATE_PAY_TX, released.payTx);

@@ -135,8 +135,34 @@ describe("run", () => {
     expect(r.order).toEqual(["setSecret", "setOutput"]);
     expect(r.order.indexOf("setSecret")).toBeLessThan(r.order.indexOf("setOutput"));
     expect(r.outputs.value).toBe(PLAINTEXT);
-    // `emitGithubMasks` runs between the two, so derived encodings are masked as well.
+    // `emitGithubMasks` runs the moment `getSecret` returns, so every derived encoding is
+    // registered with the runner's redactor before the value reaches `setOutput`.
     expect(masks.every((l) => l.startsWith("::add-mask::"))).toBe(true);
+  });
+
+  it("emits the masks for material already derived when the release fails part-way", async () => {
+    const r = recorder();
+    const masks: string[] = [];
+    const { registerSecretMaterial } = await import("@klaxon/core");
+    const shareA = Buffer.alloc(32, 9);
+
+    await run(
+      deps(r, {
+        writeLine: (l) => masks.push(l),
+        getSecret: async () => {
+          // What `getSecret` really does: share A is decrypted and registered long before the
+          // witness can refuse, so a throw after that point must not leave it unmasked.
+          registerSecretMaterial(shareA);
+          throw new Error("release refused");
+        },
+      }),
+    );
+
+    expect(r.failed).toHaveLength(1);
+    expect(masks).toContain(`::add-mask::${shareA.toString("hex")}`);
+    expect(masks).toContain(`::add-mask::${shareA.toString("base64url")}`);
+    // Nothing was released, so nothing reached a sink either.
+    expect(r.order).toEqual([]);
   });
 
   it("hands getSecret an oidc callback wired to core.getIDToken", async () => {

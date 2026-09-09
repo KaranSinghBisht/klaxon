@@ -34,7 +34,11 @@ jobs:
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5.0.0
         with:
-          node-version-file: .node-version
+          # D9 — `action.yml` declares `using: 'node24'` and the bundle is built `--target=node24`,
+          # so the job that proves the committed dist matches a rebuild has to run on the runtime
+          # the dist actually executes under. Pinned here rather than in the repo-root
+          # `.node-version` (which is 22, and which the rest of the tooling reads).
+          node-version: '24'
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -49,6 +53,27 @@ jobs:
             echo "::error::packages/action/dist/ is out of date. Run 'pnpm --filter @klaxon/action build' and commit the result."
             exit 1
           fi
+
+      # A matching dist only proves the bytes are current, not that Node 24 can load them. Both
+      # entrypoints are CommonJS bundles that pull in `@x402/hedera`, `@actions/core` and the whole
+      # of `@klaxon/core` at module scope, so requiring them here catches a module-format or
+      # runtime break on the target runtime. Without this the first execution of the built action
+      # would be during filming.
+      #
+      # `VITEST` suppresses the self-start guard at the bottom of each entrypoint: `GITHUB_ACTIONS`
+      # is `true` in this job, and we want the module evaluated, not the action run.
+      - name: Smoke-test the built entrypoints on Node 24
+        env:
+          VITEST: check-dist
+        run: |
+          node --version
+          node -e "
+            const entry = require('./packages/action/dist/index.js');
+            const post = require('./packages/action/dist/post.js');
+            if (typeof entry.main !== 'function') throw new Error('dist/index.js exports no main()');
+            if (typeof post.post !== 'function') throw new Error('dist/post.js exports no post()');
+            process.stdout.write('dist entrypoints load and export their entry functions\n');
+          "
 
       - name: Upload the rebuilt bundle when it differs
         if: failure()

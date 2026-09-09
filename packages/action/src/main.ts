@@ -68,9 +68,9 @@ function loadEncFile(read: (path: string) => string, name: string): EncFile {
 }
 
 /**
- * The whole action. Ordering is the security property: `setSecret` runs before the value can reach
- * any sink, the derived material is masked next, and only then is the value handed to the one step
- * that plumbs `steps.<id>.outputs.value` into its own `env:` (B §1.4).
+ * The whole action. Ordering is the security property: every piece of derived material is masked
+ * the moment `getSecret` returns or throws, `setSecret` masks the plaintext, and only then is the
+ * value handed to the one step that plumbs `steps.<id>.outputs.value` into its own `env:` (B §1.4).
  */
 export async function run(deps: RunDeps): Promise<void> {
   const c = deps.core;
@@ -87,18 +87,27 @@ export async function run(deps: RunDeps): Promise<void> {
     const enc = loadEncFile(deps.readEnc, name);
     transport = await deps.buildTransport({ witness, payAccount, payKey, maxTinybars });
 
-    const released = await deps.getSecret({
-      enc,
-      member,
-      // `h` is only known after `C` is built, so the token is minted through this callback (D18).
-      oidc: (audience: string) => c.getIDToken(audience),
-      transport,
-      restore: deps.restore,
-    });
+    let released: GetSecretResult;
+    try {
+      released = await deps.getSecret({
+        enc,
+        member,
+        // `h` is only known after `C` is built, so the token is minted through this callback (D18).
+        oidc: (audience: string) => c.getIDToken(audience),
+        transport,
+        restore: deps.restore,
+      });
+    } finally {
+      // `getSecret` registers each piece of material as it derives it — the wsek, share A, share B,
+      // the domain key, the plaintext — so the masks belong on every exit, not just the happy one.
+      // Emitting only on success meant that any throw past the first derivation left everything
+      // already derived unregistered with the runner's redactor for the rest of the job, which is
+      // exactly the moment a stack trace or a debug log is most likely to print it.
+      emitGithubMasks(deps.writeLine);
+    }
 
     const value = released.secret.toString("utf8");
     c.setSecret(value);
-    emitGithubMasks(deps.writeLine);
     c.setOutput("value", value);
     // Only public, on-the-record values reach state — never the plaintext.
     c.saveState(STATE_COMMITMENT, released.h);
