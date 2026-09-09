@@ -8,5 +8,9 @@
   "scripts": {
     "postinstall": "node postinstall.js"
   },
-  "files": ["index.js", "postinstall.js", "README.md"]
+  "files": [
+    "index.js",
+    "postinstall.js",
+    "README.md"
+  ]
 }
