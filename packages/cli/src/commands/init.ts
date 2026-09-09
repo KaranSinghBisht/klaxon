@@ -9,13 +9,14 @@ import {
   saveConfig,
   upsertProject,
 } from "../config/config-store.js";
-import { configPath, policyPath, stateDir } from "../config/paths.js";
+import { configPath, operatorKeyPath, policyPath, stateDir } from "../config/paths.js";
 import { policySkeleton, readPolicyFile, writePolicyFile } from "../config/policy.js";
 import type { ProjectContext } from "../context.js";
 import type { CliDeps } from "../deps.js";
 import { CliError } from "../errors.js";
 import { assertNetwork } from "../hedera/client.js";
 import { loadMember } from "../member.js";
+import { loadOrCreateOperatorKey } from "../operator.js";
 import { encodeCommitPolicy, encodeRegister } from "../registry/calldata.js";
 import { DEFAULT_EVM_NETWORK, sendCalls, walletCliFor } from "../registry/send.js";
 import { extractAccountLabel } from "../wallet-cli/exec.js";
@@ -34,6 +35,7 @@ export interface InitOptions {
   hederaKeyType?: string;
   hederaNetwork?: string;
   network?: string;
+  payAccount?: string;
   skipRingInit?: boolean;
   dryRun?: boolean;
   printOnly?: boolean;
@@ -85,6 +87,26 @@ export async function runInit(deps: CliDeps, opts: InitOptions): Promise<InitRes
   const trustchain = requireTrustchain(session);
   const { member } = await loadMember({ stateDir: dir, keychain: deps.keychain, env: deps.env });
 
+  // The admin surface gets its own key. The member credential above ships to every runner as an
+  // input of `klaxon/get`, so it must not be able to authorise `/shares` (PROTOCOL §2).
+  const operatorFile = operatorKeyPath(deps.env, deps.home);
+  const { key: operator, created } = loadOrCreateOperatorKey(operatorFile);
+  deps.stderr(
+    created
+      ? `operator key created at ${operatorFile} (mode 0600, back it up — it is not the member key)\n`
+      : `operator key loaded from ${operatorFile}\n`,
+  );
+
+  const payAccount = opts.payAccount ?? deps.env.KLAXON_PAY_ACCOUNT;
+  if (payAccount && !/^\d+\.\d+\.\d+$/.test(payAccount)) {
+    throw new CliError("BAD_ARGUMENT", "--pay-account is a Hedera account id, e.g. 0.0.1234567");
+  }
+  if (!payAccount) {
+    deps.stderr(
+      "no --pay-account: check 1 will accept a payment from any account until one is registered\n",
+    );
+  }
+
   // D15: read the label out of the JSON. Never hardcode `ethereum-sepolia-1`/`ethereum_sepolia-1`.
   const discovered = await walletCliFor(deps, {}).accountDiscover(evmNetwork);
   const accountLabel = extractAccountLabel(discovered, evmNetwork);
@@ -93,7 +115,7 @@ export async function runInit(deps: CliDeps, opts: InitOptions): Promise<InitRes
   const projectId = deriveProjectId(repositoryId, trustchain.rootId);
   const witness = new WitnessClient({
     baseUrl: witnessUrl,
-    member,
+    operator,
     fetchImpl: deps.fetchImpl,
     now: deps.now,
   });
@@ -117,6 +139,8 @@ export async function runInit(deps: CliDeps, opts: InitOptions): Promise<InitRes
     repository_id: repositoryId,
     repository,
     member_pubkey: member.pubkey,
+    operator_pubkey: operator.pubkey,
+    ...(payAccount ? { pay_account: payAccount } : {}),
     topic_id: topicId,
     ntfy_topic: ntfyTopic,
   });
@@ -146,6 +170,8 @@ export async function runInit(deps: CliDeps, opts: InitOptions): Promise<InitRes
     hedera_account: manifest.hedera_account,
     hedera_network: hederaNetwork,
     member_pubkey: member.pubkey,
+    operator_pubkey: operator.pubkey,
+    ...(payAccount ? { pay_account: payAccount } : {}),
     ntfy_topic: ntfyTopic,
     account_label: accountLabel,
     last_epoch: 0,
@@ -189,6 +215,10 @@ export function makeInitCommand(deps: CliDeps): Command {
     .option("--hedera-key-type <type>", "ecdsa (default) or ed25519")
     .option("--hedera-network <name>", "testnet (default), mainnet or previewnet")
     .option("--network <id>", `wallet-cli network (default: ${DEFAULT_EVM_NETWORK})`)
+    .option(
+      "--pay-account <id>",
+      "Hedera account the runner pays from; check 1 binds the debit to it (default: KLAXON_PAY_ACCOUNT)",
+    )
     .option("--skip-ring-init", "the Key Ring is already initialised on this machine")
     .option("--dry-run", "prepare and validate the Sepolia transactions without asking the device")
     .option("--print-only", "stop before register/commitPolicy")

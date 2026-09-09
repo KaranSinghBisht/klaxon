@@ -10,6 +10,17 @@ export const ENVIRONMENT = "production";
 export const WORKFLOW_PATH = ".github/workflows/deploy.yml";
 export const PINNED_ACTION = `actions/checkout@${"1".repeat(40)}`;
 
+/**
+ * The runner's Hedera account: what the project registers as `pay_account`, what the fake payment
+ * port reports as the debit side of the transfer list, and what the mirror-node fixture renders.
+ *
+ * It lives here because check 1 refuses when those three disagree — so if each file kept its own
+ * literal, one copy drifting would look like a protocol bug in every release test at once. That
+ * is not hypothetical: it is what happened, and a comment telling each copy to stay in sync is
+ * not a mechanism.
+ */
+export const PAY_ACCOUNT = "0.0.5550001";
+
 export interface PolicyFixtureOptions {
   projectId: string;
   secrets?: string[];

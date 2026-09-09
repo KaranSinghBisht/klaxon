@@ -118,13 +118,14 @@ describe("add", () => {
     ).toBe(`${PLAINTEXT}\n`);
   });
 
-  it("asks the witness for B over the member-signed channel", async () => {
+  it("asks the witness for B over the operator-signed channel", async () => {
     const b = bench();
     await runWriteSecret(b.deps, NAME, {}, "add");
     const call = b.calls[0];
     if (!call) throw new Error("no request recorded");
     expect(new URL(call.url).pathname).toBe("/shares");
-    expect(call.headers["x-klaxon-member-sig"]).toBeTruthy();
+    expect(call.headers["x-klaxon-operator-sig"]).toBeTruthy();
+    expect(call.headers["x-klaxon-member-sig"]).toBeUndefined();
     expect(JSON.parse(call.body.toString("utf8"))).toEqual({
       project_id: TEST_PROJECT_ID,
       secret: NAME,

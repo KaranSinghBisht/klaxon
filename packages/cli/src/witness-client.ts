@@ -1,4 +1,4 @@
-import { type KlaxonMember, signMemberRequest } from "@klaxon/core";
+import { type OperatorKey, signOperatorRequest } from "@klaxon/core";
 import { z } from "zod";
 import { CliError } from "./errors.js";
 
@@ -35,31 +35,34 @@ export interface RegisterProjectBody {
   repository_id: string;
   repository: string;
   member_pubkey: string;
+  operator_pubkey: string;
+  pay_account?: string;
   topic_id: string;
   ntfy_topic: string;
 }
 
 export interface WitnessClientOptions {
   baseUrl: string;
-  member: Pick<KlaxonMember, "privatekey" | "pubkey">;
+  operator: OperatorKey;
   fetchImpl?: typeof fetch;
   now?: () => Date;
 }
 
 /**
- * The operator half of the witness API. Every mutating route is member-signed (D27): the LKRP
- * member key the laptop already holds signs the request, and the witness checks it against the
- * `member_pubkey` recorded at `init`. No bearer token, no new long-lived secret.
+ * The operator half of the witness API. Every mutating route is signed with the operator key,
+ * which `klaxon init` generates and which never leaves the laptop. It is NOT the LKRP member key:
+ * that credential is a required input of `klaxon/get`, so signing this surface with it would put
+ * the ability to ask for share B inside every protected job (PROTOCOL §2).
  */
 export class WitnessClient {
   private readonly baseUrl: string;
-  private readonly member: Pick<KlaxonMember, "privatekey" | "pubkey">;
+  private readonly operator: OperatorKey;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
 
   constructor(o: WitnessClientOptions) {
     this.baseUrl = o.baseUrl.replace(/\/+$/, "");
-    this.member = o.member;
+    this.operator = o.operator;
     this.fetchImpl = o.fetchImpl ?? fetch;
     this.now = o.now ?? (() => new Date());
   }
@@ -106,9 +109,9 @@ export class WitnessClient {
   private async postSigned<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}`);
     const bytes = Buffer.from(JSON.stringify(body), "utf8");
-    const headers = signMemberRequest(
-      this.member.privatekey,
-      this.member.pubkey,
+    const headers = signOperatorRequest(
+      this.operator.privatekey,
+      this.operator.pubkey,
       "POST",
       url.pathname,
       bytes,

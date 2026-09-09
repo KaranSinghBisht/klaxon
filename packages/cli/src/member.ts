@@ -1,4 +1,4 @@
-import { type KlaxonMember, KlaxonMemberSchema, memberPublicKeyHex } from "@klaxon/core";
+import { compressedPubkeyHex, type KlaxonMember, KlaxonMemberSchema } from "@klaxon/core";
 import { KEYCHAIN_SERVICE, keychainAccount } from "./config/paths.js";
 import { CliError } from "./errors.js";
 import {
@@ -46,7 +46,7 @@ export async function loadMember(a: LoadMemberArgs): Promise<LoadedMember> {
     passwordSalt: session.passwordSalt,
   });
   // A §3.5: wallet-cli derives the compressed secp256k1 point when line 1 is absent.
-  const pubkey = (value.line1 ?? memberPublicKeyHex(privatekey)).toLowerCase();
+  const pubkey = (value.line1 ?? compressedPubkeyHex(privatekey)).toLowerCase();
   const trustchain = requireTrustchain(session);
   const member = KlaxonMemberSchema.parse({
     v: 1,

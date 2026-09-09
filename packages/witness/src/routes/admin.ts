@@ -7,7 +7,7 @@ import { immediateTransaction } from "../db/index.js";
 import { revokeEnvelope, rotateEnvelope } from "../hcs/envelope.js";
 import { publishOutboxId } from "../hcs/publish.js";
 import { deriveShareB, shareBHash } from "../shares/derive.js";
-import { checkMemberSignature, claimedMemberPubkey } from "./member-auth.js";
+import { checkOperatorSignature, claimedOperatorPubkey } from "./operator-auth.js";
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const SECRET_NAME = /^[A-Z][A-Z0-9_]{0,127}$/;
@@ -19,6 +19,11 @@ const ProjectSchema = z
     repository_id: z.string().regex(DIGITS),
     repository: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
     member_pubkey: z.string().regex(/^0[23][0-9a-f]{64}$/),
+    operator_pubkey: z.string().regex(/^0[23][0-9a-f]{64}$/),
+    pay_account: z
+      .string()
+      .regex(/^\d+\.\d+\.\d+$/)
+      .optional(),
     topic_id: z.string().regex(/^\d+\.\d+\.\d+$/),
     ntfy_topic: z
       .string()
@@ -40,9 +45,13 @@ const RevokeSchema = z
   .strict();
 
 /**
- * PROTOCOL §2 admin surface, all four routes authenticated with the LKRP member key (D27).
+ * PROTOCOL §2 admin surface, all four routes authenticated with the operator key — never the LKRP
+ * member key, which every runner holds (see `operator-auth.ts`).
+ *
  * `/shares` and `/rotate` hand back a **derived** B (PROTOCOL §3, D28) — the witness stores only
- * its hash, so there is no share ciphertext on the box to lose or to steal.
+ * its hash, so there is no share ciphertext on the box to lose or to steal. They are the only two
+ * routes that ever emit share material, so both refuse a revoked project and both hand B back
+ * once and only once, on the call that actually creates the row.
  */
 export function registerAdminRoutes(app: FastifyInstance, ctx: WitnessContext): void {
   app.post("/projects", async (req, reply) => {
@@ -54,9 +63,9 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: WitnessContext): 
     // Bootstrap: before a project row exists there is nothing to check against, so the
     // registration is self-signed by the key it registers. Afterwards the stored key rules, so a
     // second caller cannot re-register the project under their own key.
-    const expected = existing ? existing.member_pubkey : body.member_pubkey;
-    if (claimedMemberPubkey(req) !== expected) return unauthorized(reply);
-    const auth = checkMemberSignature(req, expected, ctx.clock());
+    const expected = existing ? existing.operator_pubkey : body.operator_pubkey;
+    if (claimedOperatorPubkey(req) !== expected) return unauthorized(reply);
+    const auth = checkOperatorSignature(req, expected, ctx.clock());
     if (!auth.ok) return unauthorized(reply, auth.reason);
 
     ctx.repos.projects.insert({
@@ -64,6 +73,8 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: WitnessContext): 
       repository: body.repository,
       repository_id: body.repository_id,
       member_pubkey: body.member_pubkey,
+      operator_pubkey: body.operator_pubkey,
+      pay_account: body.pay_account ?? null,
       topic_id: body.topic_id,
       ntfy_topic: body.ntfy_topic ?? null,
       max_releases: ctx.config.KLAXON_MAX_RELEASES_DEFAULT,
@@ -79,12 +90,17 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: WitnessContext): 
     if (!guard.ok) return guard.reply;
     const project = guard.project;
 
+    const revoked = refuseIfRevoked(project, reply);
+    if (revoked) return revoked;
+
     if (parsed.data.gen !== String(project.current_gen)) {
       return reply
         .code(409)
         .send({ ok: false, reason: `generation must be ${project.current_gen}` });
     }
-    return reply.code(200).send(recordShare(ctx, project, parsed.data.secret, parsed.data.gen));
+    const share = recordShare(ctx, project, parsed.data.secret, parsed.data.gen);
+    if (!share.ok) return reply.code(409).send(share);
+    return reply.code(200).send(share);
   });
 
   app.post("/rotate", async (req, reply) => {
@@ -93,6 +109,9 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: WitnessContext): 
     const guard = authorize(ctx, req, reply, parsed.data.project_id);
     if (!guard.ok) return guard.reply;
     const project = guard.project;
+
+    const revoked = refuseIfRevoked(project, reply);
+    if (revoked) return revoked;
 
     const from = project.current_gen;
     const to = Number(parsed.data.gen);
@@ -120,7 +139,9 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: WitnessContext): 
     await publish(ctx, outboxId);
 
     const rotated = ctx.repos.projects.get(project.project_id) ?? project;
-    return reply.code(200).send(recordShare(ctx, rotated, parsed.data.secret, parsed.data.gen));
+    const share = recordShare(ctx, rotated, parsed.data.secret, parsed.data.gen);
+    if (!share.ok) return reply.code(409).send(share);
+    return reply.code(200).send(share);
   });
 
   app.post("/revoke", async (req, reply) => {
@@ -161,30 +182,50 @@ function authorize(
 ): Guard {
   const project = ctx.repos.projects.get(projectId);
   if (!project) return { ok: false, reply: notFound(reply) };
-  const auth = checkMemberSignature(req, project.member_pubkey, ctx.clock());
+  const auth = checkOperatorSignature(req, project.operator_pubkey, ctx.clock());
   if (!auth.ok) return { ok: false, reply: unauthorized(reply, auth.reason) };
   return { ok: true, project };
 }
 
 /**
- * B is a pure function of the master and `(project, secret, gen)`, so recording a share twice is
- * idempotent by construction; `INSERT OR IGNORE` keeps the first row's `created_at` and `retired`.
+ * A revoked project hands out no share material. Revocation is the operator saying "something is
+ * wrong here"; continuing to serve B through the admin surface would make the state cosmetic.
+ * `/revoke` deliberately does not use this — re-revoking is idempotent, not an error.
+ */
+function refuseIfRevoked(project: ProjectRow, reply: FastifyReply): FastifyReply | null {
+  if (project.revoked === 0) return null;
+  return reply.code(409).send({ ok: false, reason: "project is revoked" });
+}
+
+/**
+ * B is a pure function of the master and `(project, secret, gen)`, so re-deriving it is cheap and
+ * `INSERT OR IGNORE` keeps the first row's `created_at` and `retired`. What is *not* idempotent is
+ * handing the bytes out: `klaxon add` needs B exactly once, to compute share A. Every later caller
+ * gets the hash and a 409, so a leaked credential cannot be replayed into an unlimited share
+ * oracle. Re-running `add` for an existing generation is a `rotate`.
  */
 function recordShare(
   ctx: WitnessContext,
   project: ProjectRow,
   secret: string,
   gen: string,
-): { ok: true; b: string; b_hash: string } {
+): { ok: true; b: string; b_hash: string } | { ok: false; reason: string; b_hash: string } {
   const b = deriveShareB(ctx.config.WITNESS_MASTER, project.project_id, secret, gen);
   const hash = shareBHash(b);
-  ctx.repos.shares.insert({
+  const created = ctx.repos.shares.insert({
     project_id: project.project_id,
     secret,
     gen: Number(gen),
     b_hash: hash,
     created_at: ctx.clock().toISOString(),
   });
+  if (!created) {
+    return {
+      ok: false,
+      reason: `share already issued for ${secret} generation ${gen}`,
+      b_hash: hash,
+    };
+  }
   return { ok: true, b: b64u.encode(b), b_hash: hash };
 }
 
@@ -196,7 +237,7 @@ function badRequest(reply: FastifyReply, reason: string): FastifyReply {
   return reply.code(400).send({ ok: false, reason });
 }
 
-function unauthorized(reply: FastifyReply, reason = "member signature required"): FastifyReply {
+function unauthorized(reply: FastifyReply, reason = "operator signature required"): FastifyReply {
   return reply.code(401).send({ ok: false, reason });
 }
 

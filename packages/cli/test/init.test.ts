@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { deriveProjectId } from "@klaxon/core";
+import { compressedPubkeyHex, deriveProjectId } from "@klaxon/core";
 import { describe, expect, it } from "vitest";
 import { runInit } from "../src/commands/init.js";
 import { parseConfig } from "../src/config/config-store.js";
@@ -19,6 +19,14 @@ import {
   tempDir,
   writeSession,
 } from "./helpers.js";
+
+/** `init` generates the operator key, so the expected pubkey is whatever it wrote. */
+function operatorKeyHex(home: string): string {
+  return readFileSync(join(home, ".klaxon", "operator.key"), "utf8").trim();
+}
+function operatorPub(home: string): string {
+  return compressedPubkeyHex(operatorKeyHex(home));
+}
 
 const REPO = "acme/demo";
 const REPO_ID = "123456789";
@@ -123,7 +131,7 @@ describe("init", () => {
       network: "testnet",
     });
 
-    // 4. the witness learns the project over the member-signed channel.
+    // 4. the witness learns the project over the operator-signed channel.
     const projects = b.fetchCalls.find((c) => new URL(c.url).pathname === "/projects");
     if (!projects) throw new Error("no /projects call");
     expect(JSON.parse(projects.body.toString("utf8"))).toEqual({
@@ -131,10 +139,14 @@ describe("init", () => {
       repository_id: REPO_ID,
       repository: REPO,
       member_pubkey: TEST_PUB,
+      operator_pubkey: operatorPub(b.home),
       topic_id: "0.0.48213",
       ntfy_topic: `klaxon-${"5c".repeat(16)}`,
     });
-    expect(projects.headers["x-klaxon-member-sig"]).toBeTruthy();
+    // Signed by the operator key, never the member key the runner also holds (PROTOCOL §2).
+    expect(projects.headers["x-klaxon-operator-sig"]).toBeTruthy();
+    expect(projects.headers["x-klaxon-operator-pub"]).toBe(operatorPub(b.home));
+    expect(projects.headers["x-klaxon-member-sig"]).toBeUndefined();
 
     // 5. the policy skeleton, hashed as its exact committed bytes.
     const policyBytes = readFileSync(join(b.cwd, "klaxon.policy.json"));
@@ -152,9 +164,32 @@ describe("init", () => {
       registry_address: TEST_REGISTRY,
       hedera_account: "0.0.7777",
       member_pubkey: TEST_PUB,
+      operator_pubkey: operatorPub(b.home),
       account_label: LABEL,
       last_epoch: 0,
     });
+  });
+
+  it("creates an operator key that is not the member key, mode 0600", async () => {
+    const b = bench();
+    await runInit(b.deps, BASE_OPTS);
+
+    const file = join(b.home, ".klaxon", "operator.key");
+    expect(operatorKeyHex(b.home)).toMatch(/^[0-9a-f]{64}$/);
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    // The whole point of the split: the admin credential is not the one shipped to runners.
+    expect(operatorKeyHex(b.home)).not.toBe(TEST_PRIV);
+    expect(operatorPub(b.home)).not.toBe(TEST_PUB);
+  });
+
+  it("reuses an operator key that already exists rather than rotating it", async () => {
+    const b = bench();
+    await runInit(b.deps, BASE_OPTS);
+    const first = operatorKeyHex(b.home);
+
+    await runInit(b.deps, BASE_OPTS);
+
+    expect(operatorKeyHex(b.home)).toBe(first);
   });
 
   it("signs register then commitPolicy back to back in one device session (D19)", async () => {

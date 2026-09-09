@@ -1,3 +1,14 @@
+export {
+  compressedPubkeyHex,
+  generateOperatorKey,
+  OPERATOR_SIG_DOMAIN,
+  OPERATOR_SIG_MAX_SKEW_MS,
+  type OperatorKey,
+  type OperatorSignedHeaders,
+  operatorSigMessage,
+  signOperatorRequest,
+  verifyOperatorRequest,
+} from "./auth/operator-sign.js";
 export { canonicalize, digestHex, sha256 } from "./canonical.js";
 export { commitmentHash, oidcAudience, PROBE_AUDIENCE } from "./commitment.js";
 export { openSecret, type SecretAad, sealSecret } from "./crypto/aead.js";
@@ -41,15 +52,6 @@ export {
 } from "./lkrp/constants.js";
 export { deriveDomainKey, ringDecrypt, ringEncrypt } from "./lkrp/domain-key.js";
 export { decodeMember, encodeMember } from "./lkrp/member.js";
-export {
-  MEMBER_SIG_DOMAIN,
-  MEMBER_SIG_MAX_SKEW_MS,
-  type MemberSignedHeaders,
-  memberPublicKeyHex,
-  memberSigMessage,
-  signMemberRequest,
-  verifyMemberRequest,
-} from "./lkrp/member-sign.js";
 export { type RestoreOptions, restoreWalletSyncKey } from "./lkrp/restore.js";
 export { deriveProjectId } from "./project.js";
 export { type AddSecretArgs, addSecret } from "./release/add.js";

@@ -1,6 +1,6 @@
 import { createCipheriv, pbkdf2Sync, randomBytes } from "node:crypto";
 import { join } from "node:path";
-import { decodeMember, memberPublicKeyHex } from "@klaxon/core";
+import { compressedPubkeyHex, decodeMember } from "@klaxon/core";
 import { describe, expect, it } from "vitest";
 import { runExportMember } from "../src/commands/export-member.js";
 import { KEYCHAIN_SERVICE, keychainAccount } from "../src/config/paths.js";
@@ -70,7 +70,7 @@ describe("export-member", () => {
       applicationPath: TEST_APP_PATH,
       applicationId: 17,
       privatekey: TEST_PRIV,
-      pubkey: memberPublicKeyHex(TEST_PRIV),
+      pubkey: compressedPubkeyHex(TEST_PRIV),
     });
     expect(member.pubkey).toBe(TEST_PUB);
     expect(asked).toEqual([`${KEYCHAIN_SERVICE}/${keychainAccount(dir)}`]);

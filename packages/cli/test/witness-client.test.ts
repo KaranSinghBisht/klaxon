@@ -1,8 +1,14 @@
-import { b64u, verifyMemberRequest } from "@klaxon/core";
+import { b64u, verifyOperatorRequest } from "@klaxon/core";
 import { describe, expect, it } from "vitest";
 import { CliError } from "../src/errors.js";
 import { WitnessClient } from "../src/witness-client.js";
-import { fakeFetch, TEST_MEMBER, TEST_PROJECT_ID, TEST_PUB } from "./helpers.js";
+import {
+  fakeFetch,
+  TEST_OPERATOR_PRIV,
+  TEST_OPERATOR_PUB,
+  TEST_PROJECT_ID,
+  TEST_PUB,
+} from "./helpers.js";
 
 const B = b64u.encode(Buffer.alloc(32, 7));
 const B_HASH = "c".repeat(64);
@@ -14,14 +20,14 @@ function client(routes: Parameters<typeof fakeFetch>[0]) {
     calls,
     witness: new WitnessClient({
       baseUrl: "https://witness.example/",
-      member: TEST_MEMBER,
+      operator: { privatekey: TEST_OPERATOR_PRIV, pubkey: TEST_OPERATOR_PUB },
       fetchImpl: impl,
       now: () => NOW,
     }),
   };
 }
 
-describe("member-signed requests", () => {
+describe("operator-signed requests", () => {
   it("signs the exact bytes on the wire, over METHOD/path/ts", async () => {
     const { witness, calls } = client({
       "/shares": () => ({ json: { ok: true, b: B, b_hash: B_HASH } }),
@@ -31,9 +37,11 @@ describe("member-signed requests", () => {
     const call = calls[0];
     if (!call) throw new Error("no request recorded");
     expect(call.method).toBe("POST");
-    expect(call.headers["x-klaxon-member-pub"]).toBe(TEST_PUB);
+    expect(call.headers["x-klaxon-operator-pub"]).toBe(TEST_OPERATOR_PUB);
     expect(call.headers["x-klaxon-ts"]).toBe(NOW.toISOString());
-    expect(verifyMemberRequest(TEST_PUB, call.headers, "POST", "/shares", call.body, NOW)).toEqual({
+    expect(
+      verifyOperatorRequest(TEST_OPERATOR_PUB, call.headers, "POST", "/shares", call.body, NOW),
+    ).toEqual({
       ok: true,
     });
     expect(JSON.parse(call.body.toString("utf8"))).toEqual({
@@ -52,7 +60,7 @@ describe("member-signed requests", () => {
     if (!call) throw new Error("no request recorded");
     const tampered = Buffer.from(call.body.toString("utf8").replace('"1"', '"2"'), "utf8");
     expect(
-      verifyMemberRequest(TEST_PUB, call.headers, "POST", "/shares", tampered, NOW),
+      verifyOperatorRequest(TEST_OPERATOR_PUB, call.headers, "POST", "/shares", tampered, NOW),
     ).toMatchObject({ ok: false });
   });
 
@@ -62,7 +70,7 @@ describe("member-signed requests", () => {
     });
     const witness = new WitnessClient({
       baseUrl: "https://witness.example",
-      member: TEST_MEMBER,
+      operator: { privatekey: TEST_OPERATOR_PRIV, pubkey: TEST_OPERATOR_PUB },
       fetchImpl: impl,
       now: () => NOW,
     });
@@ -70,7 +78,9 @@ describe("member-signed requests", () => {
     const call = calls[0];
     if (!call) throw new Error("no request recorded");
     expect(call.url).toBe("https://witness.example/rotate");
-    expect(verifyMemberRequest(TEST_PUB, call.headers, "POST", "/rotate", call.body, NOW)).toEqual({
+    expect(
+      verifyOperatorRequest(TEST_OPERATOR_PUB, call.headers, "POST", "/rotate", call.body, NOW),
+    ).toEqual({
       ok: true,
     });
   });
@@ -104,6 +114,7 @@ describe("routes", () => {
       repository_id: "1",
       repository: "acme/demo",
       member_pubkey: TEST_PUB,
+      operator_pubkey: TEST_OPERATOR_PUB,
       topic_id: "0.0.1",
       ntfy_topic: "klaxon-aa",
     });

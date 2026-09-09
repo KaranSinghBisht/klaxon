@@ -2,14 +2,14 @@ import {
   type Commitment,
   CommitmentSchema,
   commitmentHash,
+  compressedPubkeyHex,
   deriveProjectId,
   type EphemeralKeyPair,
   eciesOpen,
   generateEphemeral,
-  memberPublicKeyHex,
   oidcAudience,
   signCommitment,
-  signMemberRequest,
+  signOperatorRequest,
 } from "@klaxon/core";
 import type { FastifyInstance } from "fastify";
 import type { WitnessContext } from "../../src/context.js";
@@ -27,6 +27,7 @@ import {
   CLEAN_WORKFLOW,
   COMMIT_SHA,
   ENVIRONMENT,
+  PAY_ACCOUNT,
   policyFixture,
   REPOSITORY,
   REPOSITORY_ID,
@@ -39,7 +40,12 @@ import { createFakeIssuer, type FakeIssuer } from "./oidc.js";
 
 export const PROJECT_ID = deriveProjectId(REPOSITORY_ID, TRUSTCHAIN_ROOT);
 export const MEMBER_PRIV = "11".repeat(32);
-export const MEMBER_PUB = memberPublicKeyHex(MEMBER_PRIV);
+export const MEMBER_PUB = compressedPubkeyHex(MEMBER_PRIV);
+/** The operator key is a different key entirely — that separation is the point (PROTOCOL §2). */
+export const OPERATOR_PRIV = "22".repeat(32);
+export const OPERATOR_PUB = compressedPubkeyHex(OPERATOR_PRIV);
+/** Re-exported so existing importers keep working; the constant itself lives in `fixtures.ts`. */
+export { PAY_ACCOUNT };
 export const WITNESS_MASTER_HEX = "5a".repeat(32);
 export const NTFY_TOPIC = "klaxon-0123456789abcdef0123456789abcdef";
 
@@ -103,7 +109,7 @@ export interface Harness {
   addShare(secret?: string, gen?: number): void;
   release(options?: ReleaseOptions): Promise<ReleaseResult>;
   openShareB(result: ReleaseResult): Buffer;
-  memberHeaders(method: string, path: string, body: unknown): Record<string, string>;
+  operatorHeaders(method: string, path: string, body: unknown): Record<string, string>;
   close(): Promise<void>;
 }
 
@@ -147,9 +153,9 @@ export async function createHarness(env: NodeJS.ProcessEnv = {}): Promise<Harnes
   source.put(REPOSITORY, COMMIT_SHA, WORKFLOW_PATH, CLEAN_WORKFLOW);
   registry.setPolicyHash(PROJECT_ID, policy.hash);
 
-  const memberHeaders = (method: string, path: string, body: unknown): Record<string, string> => {
+  const operatorHeaders = (method: string, path: string, body: unknown): Record<string, string> => {
     const raw = Buffer.from(JSON.stringify(body), "utf8");
-    return { ...signMemberRequest(MEMBER_PRIV, MEMBER_PUB, method, path, raw, current) };
+    return { ...signOperatorRequest(OPERATOR_PRIV, OPERATOR_PUB, method, path, raw, current) };
   };
 
   const harness: Harness = {
@@ -170,7 +176,7 @@ export async function createHarness(env: NodeJS.ProcessEnv = {}): Promise<Harnes
       current = date;
     },
     now: clock,
-    memberHeaders,
+    operatorHeaders,
 
     stageCommit(sha, workflow) {
       source.put(REPOSITORY, sha, "klaxon.policy.json", policy.bytes);
@@ -183,6 +189,8 @@ export async function createHarness(env: NodeJS.ProcessEnv = {}): Promise<Harnes
         repository: REPOSITORY,
         repository_id: REPOSITORY_ID,
         member_pubkey: MEMBER_PUB,
+        operator_pubkey: OPERATOR_PUB,
+        pay_account: PAY_ACCOUNT,
         topic_id: TOPIC_ID,
         ntfy_topic: NTFY_TOPIC,
         max_releases: config.KLAXON_MAX_RELEASES_DEFAULT,

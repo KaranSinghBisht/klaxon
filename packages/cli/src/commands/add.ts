@@ -38,7 +38,7 @@ export type WriteMode = "add" | "rotate";
 
 /**
  * `add` and `rotate` are the same operation at two generations (D28): the witness derives B from
- * its master and hands it back over the member-signed channel, the laptop computes A = DK ⊕ B and
+ * its master and hands it back over the operator-signed channel, the laptop computes A = DK ⊕ B and
  * Key-Ring-encrypts it into the repo. The witness keeps only `(project, secret, gen, b_hash)`.
  */
 export async function runWriteSecret(
@@ -74,7 +74,7 @@ export async function runWriteSecret(
 
   const plaintext = await readPlaintext(deps, opts);
   const member = await contextMember(deps, ctx);
-  const witness = witnessFor(deps, ctx.project, member);
+  const witness = witnessFor(deps, ctx.project);
   const share =
     mode === "add"
       ? await witness.shares(ctx.project.project_id, name, gen)

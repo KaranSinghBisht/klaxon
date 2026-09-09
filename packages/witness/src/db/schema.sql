@@ -8,7 +8,17 @@ CREATE TABLE IF NOT EXISTS projects (
   project_id     TEXT PRIMARY KEY,              -- 64 hex
   repository     TEXT NOT NULL,                 -- "org/repo", for raw.githubusercontent fetches
   repository_id  TEXT NOT NULL,                 -- GitHub numeric id, as a string
-  member_pubkey  TEXT NOT NULL,                 -- authorises /shares, /rotate, /revoke (D27)
+  -- Recorded provenance only: which trustchain member the project's share A is bound to. It
+  -- deliberately authorises nothing, because this key is shipped to every runner (see below).
+  member_pubkey  TEXT NOT NULL,
+  -- Authorises /shares, /rotate, /revoke, /unrevoke. D27 originally used member_pubkey for this;
+  -- that made POST /shares a free share-B oracle for anything sharing a job's environment, since
+  -- the member credential is a required input of klaxon/get. The operator key never leaves the
+  -- laptop.
+  operator_pubkey TEXT NOT NULL DEFAULT '',
+  -- Hedera account registered as this project's payer; check 1 binds the debit to it (null = the
+  -- binding is not enforced, for projects registered before it existed).
+  pay_account    TEXT,
   owner_address  TEXT,                          -- Sepolia owner, mirrored
   topic_id       TEXT NOT NULL,
   ntfy_topic     TEXT,                          -- klaxon-<32 hex>; the name is the password (D29)

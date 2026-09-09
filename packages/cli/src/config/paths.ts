@@ -45,6 +45,15 @@ export function witnessMasterPath(env?: NodeJS.ProcessEnv, home?: string): strin
   return join(klaxonHome(env, home), "witness-master.key");
 }
 
+/**
+ * The operator key that authenticates the witness admin surface; mode 0600, laptop only, and
+ * deliberately NOT the LKRP member credential — that one is a required input of `klaxon/get` and
+ * therefore present in every protected job (PROTOCOL §2).
+ */
+export function operatorKeyPath(env?: NodeJS.ProcessEnv, home?: string): string {
+  return join(klaxonHome(env, home), "operator.key");
+}
+
 export function encDir(cwd: string): string {
   return join(cwd, ".klaxon");
 }

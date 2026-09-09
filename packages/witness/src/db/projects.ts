@@ -5,6 +5,8 @@ export interface ProjectRow {
   repository: string;
   repository_id: string;
   member_pubkey: string;
+  operator_pubkey: string;
+  pay_account: string | null;
   owner_address: string | null;
   topic_id: string;
   ntfy_topic: string | null;
@@ -23,6 +25,8 @@ export interface NewProject {
   repository: string;
   repository_id: string;
   member_pubkey: string;
+  operator_pubkey: string;
+  pay_account: string | null;
   topic_id: string;
   ntfy_topic: string | null;
   max_releases: number;
@@ -55,15 +59,17 @@ export class ProjectsRepo {
     const res = this.db
       .prepare(
         `INSERT OR IGNORE INTO projects
-           (project_id, repository, repository_id, member_pubkey, topic_id, ntfy_topic,
-            max_releases, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (project_id, repository, repository_id, member_pubkey, operator_pubkey, pay_account,
+            topic_id, ntfy_topic, max_releases, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         p.project_id,
         p.repository,
         p.repository_id,
         p.member_pubkey,
+        p.operator_pubkey,
+        p.pay_account,
         p.topic_id,
         p.ntfy_topic,
         p.max_releases,

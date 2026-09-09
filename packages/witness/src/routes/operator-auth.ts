@@ -1,15 +1,21 @@
-import { verifyMemberRequest } from "@klaxon/core";
+import { verifyOperatorRequest } from "@klaxon/core";
 import type { FastifyRequest } from "fastify";
 
 /**
- * D27 / PROTOCOL §2 — admin routes are authenticated with the LKRP **member** private key, the one
- * the Ledger root already issued. No operator API key, no new secret on the witness: the signature
- * is checked against `projects.member_pubkey`, which was registered at `init`.
+ * PROTOCOL §2 — admin routes are authenticated with a dedicated **operator** key, generated at
+ * `klaxon init` and held only on the operator's laptop. The signature is checked against
+ * `projects.operator_pubkey`, registered at `init`.
+ *
+ * This replaces D27, which signed these requests with the LKRP member key. That key is a required
+ * input of `klaxon/get`, so it is present in every protected job: anything sharing that
+ * environment could sign `POST /shares` and be handed share B with no payment, no commitment and
+ * no HCS record — exactly the silent theft the project exists to prevent. The member key now
+ * authorises nothing on this surface.
  *
  * The signature covers method, path, timestamp and `sha256(raw body)`, so it cannot be replayed
  * onto another route or another body, and `|now − ts| ≤ 300 s` bounds the window.
  */
-export interface MemberAuthResult {
+export interface OperatorAuthResult {
   ok: boolean;
   reason?: string;
 }
@@ -31,13 +37,13 @@ export function rawBodyOf(req: FastifyRequest): Buffer {
   return req.rawBody ?? Buffer.alloc(0);
 }
 
-export function checkMemberSignature(
+export function checkOperatorSignature(
   req: FastifyRequest,
   expectedPubHex: string,
   now: Date,
-): MemberAuthResult {
+): OperatorAuthResult {
   try {
-    const result = verifyMemberRequest(
+    const result = verifyOperatorRequest(
       expectedPubHex,
       headerMap(req),
       req.method,
@@ -49,12 +55,12 @@ export function checkMemberSignature(
   } catch {
     // A malformed public key or signature encoding throws in core; that is still just a bad
     // request, and the detail stays out of the response.
-    return { ok: false, reason: "member signature could not be checked" };
+    return { ok: false, reason: "operator signature could not be checked" };
   }
 }
 
 /** The pubkey the caller claims, used to bootstrap `/projects` before a project row exists. */
-export function claimedMemberPubkey(req: FastifyRequest): string | undefined {
-  const v = req.headers["x-klaxon-member-pub"];
+export function claimedOperatorPubkey(req: FastifyRequest): string | undefined {
+  const v = req.headers["x-klaxon-operator-pub"];
   return Array.isArray(v) ? v[0] : v;
 }

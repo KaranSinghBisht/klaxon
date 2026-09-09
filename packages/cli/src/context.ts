@@ -6,9 +6,11 @@ import {
   resolveProject,
   saveConfig,
 } from "./config/config-store.js";
-import { configPath, stateDir } from "./config/paths.js";
+import { configPath, operatorKeyPath, stateDir } from "./config/paths.js";
 import type { CliDeps } from "./deps.js";
+import { CliError } from "./errors.js";
 import { loadMember } from "./member.js";
+import { loadOperatorKey } from "./operator.js";
 import { WitnessClient } from "./witness-client.js";
 
 export interface ProjectContext {
@@ -36,14 +38,17 @@ export async function contextMember(deps: CliDeps, ctx: ProjectContext): Promise
   return member;
 }
 
-export function witnessFor(
-  deps: CliDeps,
-  project: ProjectConfig,
-  member: KlaxonMember,
-): WitnessClient {
+export function witnessFor(deps: CliDeps, project: ProjectConfig): WitnessClient {
+  const operator = loadOperatorKey(operatorKeyPath(deps.env, deps.home));
+  if (operator.pubkey !== project.operator_pubkey) {
+    throw new CliError(
+      "OPERATOR_KEY_MISMATCH",
+      `~/.klaxon/operator.key does not match the key registered for this project (${project.operator_pubkey})`,
+    );
+  }
   return new WitnessClient({
     baseUrl: project.witness_url,
-    member,
+    operator,
     fetchImpl: deps.fetchImpl,
     now: deps.now,
   });

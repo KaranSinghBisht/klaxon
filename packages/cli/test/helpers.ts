@@ -1,12 +1,16 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { KlaxonMember } from "@klaxon/core";
+import { compressedPubkeyHex, type KlaxonMember } from "@klaxon/core";
 import type { CliDeps } from "../src/deps.js";
 
 /** A fixed, valid secp256k1 key. Test-only; it protects nothing. */
 export const TEST_PRIV = "b7f1c1a2b7c9d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d";
 export const TEST_PUB = "035eab79e9ccc3edc1754dbf5490ddb528784fce267f5f0e59827ab801b5b30e99";
+/** The operator key is deliberately a different key from the member key (PROTOCOL §2). */
+export const TEST_OPERATOR_PRIV = "44".repeat(32);
+export const TEST_OPERATOR_PUB = compressedPubkeyHex(TEST_OPERATOR_PRIV);
+export const TEST_PAY_ACCOUNT = "0.0.5550001";
 export const TEST_ROOT_ID = "0x0000000000000000000000000000000000000000000000000000000000001234";
 export const TEST_APP_PATH = "m/0'/16'/0'";
 export const TEST_WSEK = "9f".repeat(32);
@@ -91,6 +95,9 @@ export interface ProjectFixtureArgs {
 export function writeProjectConfig(a: ProjectFixtureArgs): string {
   const dir = join(a.home, ".klaxon");
   mkdirSync(dir, { recursive: true });
+  // Every laptop-side command that talks to the witness signs with this key, so the fixture has
+  // to lay it down alongside the config the way `klaxon init` does.
+  writeFileSync(join(dir, "operator.key"), `${TEST_OPERATOR_PRIV}\n`, { mode: 0o600 });
   const file = join(dir, "config.json");
   writeFileSync(
     file,
@@ -113,6 +120,8 @@ export function writeProjectConfig(a: ProjectFixtureArgs): string {
             hedera_account: "0.0.9999",
             hedera_network: "testnet",
             member_pubkey: TEST_PUB,
+            operator_pubkey: TEST_OPERATOR_PUB,
+            pay_account: TEST_PAY_ACCOUNT,
             last_epoch: 0,
           },
         },

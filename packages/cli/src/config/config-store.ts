@@ -22,6 +22,13 @@ export const ProjectConfigSchema = z.object({
   hedera_account: z.string().min(1),
   hedera_network: z.string().min(1).default("testnet"),
   member_pubkey: z.string().regex(/^0[23][0-9a-f]{64}$/),
+  /** Public half of `~/.klaxon/operator.key`; the private half is never written here. */
+  operator_pubkey: z.string().regex(/^0[23][0-9a-f]{64}$/),
+  /** Hedera account the runner pays from; the witness binds check 1's debit to it. */
+  pay_account: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/)
+    .optional(),
   ntfy_topic: z.string().min(1).optional(),
   account_label: z.string().min(1).optional(),
   /** Highest revocation epoch this laptop has seen; `unrevoke` submits this + 1 (monotonic, §8). */
