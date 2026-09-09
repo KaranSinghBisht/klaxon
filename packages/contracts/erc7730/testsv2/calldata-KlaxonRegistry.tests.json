@@ -10,7 +10,10 @@
         "interpolatedIntent": "Claim KLAXON project 0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb",
         "owner": "KLAXON",
         "fields": [
-          {"label": "Project", "value": "0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb"}
+          {
+            "label": "Project",
+            "value": "0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb"
+          }
         ]
       }
     },
@@ -22,8 +25,14 @@
         "interpolatedIntent": "Commit policy 0xa4540eaa30019b7648711a00a760ad35b559f9bdf278507696091be59fc86ca7 for project 0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb",
         "owner": "KLAXON",
         "fields": [
-          {"label": "Project", "value": "0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb"},
-          {"label": "Policy hash", "value": "0xa4540eaa30019b7648711a00a760ad35b559f9bdf278507696091be59fc86ca7"}
+          {
+            "label": "Project",
+            "value": "0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb"
+          },
+          {
+            "label": "Policy hash",
+            "value": "0xa4540eaa30019b7648711a00a760ad35b559f9bdf278507696091be59fc86ca7"
+          }
         ]
       }
     },
@@ -35,8 +44,11 @@
         "interpolatedIntent": "Lift revocation for 0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb at epoch 4",
         "owner": "KLAXON",
         "fields": [
-          {"label": "Project", "value": "0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb"},
-          {"label": "Epoch", "value": "4"}
+          {
+            "label": "Project",
+            "value": "0x22b88e22193efd65ddef92221a14c5a346b1e59f277bbb8f00f50279b0ff3fcb"
+          },
+          { "label": "Epoch", "value": "4" }
         ]
       }
     }
