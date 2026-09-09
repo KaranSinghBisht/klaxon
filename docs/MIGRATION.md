@@ -1,6 +1,6 @@
 # Migrating a pipeline onto KLAXON
 
-KLAXON does not replace GitHub Environments, pinned actions, or the split between installing and deploying. It **requires** them — the witness's own lint refuses a release to any job that skips them. This is the checklist a platform engineer works through per repo. Budget a day for the first deploy workflow, less for each one after.
+KLAXON does not replace GitHub Environments, pinned actions, or the split between installing and deploying. It **requires** them — the witness's own lint (check 5) refuses a release to a job that declares the environment and also matches its install denylist or uses an unpinned action. That lint is a denylist over literal `run:` strings, not a sandbox; what it does and does not catch is set out in `docs/THREAT-MODEL.md` § What check 5 actually is, and the honest summary is at the end of § 2 below. This is the checklist a platform engineer works through per repo. Budget a day for the first deploy workflow, less for each one after.
 
 ## 1. Put every secret-bearing job in an Environment
 
@@ -21,7 +21,7 @@ jobs:
 
 ## 2. Never install packages in the job that holds secrets
 
-This is the whole Shai-Hulud lesson. The job that runs `klaxon/get` must run from a pinned container image or a prebuilt artifact, and its steps must contain none of:
+This is the whole Shai-Hulud lesson. The job that runs `klaxon/get` must run from a pinned container image or a prebuilt artifact, and its `run:` steps must match none of the 14 patterns the witness enforces (`packages/witness/src/lint/patterns.ts`):
 
 ```
 npm|pnpm|yarn|bun install|i|ci|add · npx · pnpm dlx · bunx
@@ -64,6 +64,18 @@ jobs:
 ```
 
 Plumb the output into exactly the one step that needs it. Never `echo "X=…" >> $GITHUB_ENV` — that puts the secret in the environment of every later step, which is precisely the read path KLAXON exists to close.
+
+**Know what this pattern does and does not buy you.** The `build` job has no `environment:`, so check 5
+never looks at it — and check 5 does not open the artifact it produces. Whatever a compromised
+dependency of `build` writes into `dist/` runs inside `deploy`, next to the secret. The same is true
+of a composite action: a 40-hex pin proves the action is immutable, not that its own steps are clean,
+and the lint does not fetch them. The denylist is also a string match, not a shell model —
+`make deploy`, `./gradlew build`, `yarn dlx`, `docker run` and `bash <(curl …)` all pass it.
+
+None of that breaks KLAXON's claim, and it is worth being clear why: code that reaches the deploy job
+by any of those routes still cannot obtain the secret without a paid, signed, consensus-timestamped
+commitment naming the secret, the environment and the run. The split job pattern raises the cost of
+getting into the protected job. The commitment is what stops the secret leaving it quietly.
 
 ## 3. Pin every `uses:` by 40-hex commit SHA
 
