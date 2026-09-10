@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { registerSecretMaterial } from "../crypto/mask.js";
 import { KlaxonError } from "../errors.js";
 import type { KlaxonMember } from "../schema.js";
@@ -36,7 +37,12 @@ async function loadSdk(apiBaseUrl: string): Promise<SdkLike> {
     ) => SdkLike;
   };
   try {
-    mod = await import(LKRP_SDK_MODULE);
+    // The SDK ships two builds. Its ESM build (lib-es) uses extensionless relative imports that
+    // Node's native loader rejects (`./HWDeviceProvider` → ERR_MODULE_NOT_FOUND); its CJS build
+    // (lib/, the `require` export condition) resolves them. Load the CJS one via require so the
+    // restore works headless — on the laptop and in the clean CI container alike (Gate A).
+    const require = createRequire(import.meta.url);
+    mod = require(LKRP_SDK_MODULE);
   } catch (cause) {
     throw new KlaxonError("LKRP_RESTORE_FAILED", `cannot load ${LKRP_SDK_MODULE} on this host`, {
       cause,

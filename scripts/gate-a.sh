@@ -14,7 +14,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 pnpm --filter @klaxon/core build >/dev/null
 KEYNAME="klaxon/gate-a/$(date +%s)"
-node --input-type=module -e "
+# Env vars must precede `node`, not trail the `-e` script (there they are argv, not env).
+MEMBER="$(cat "$MEMBER_FILE")" KEYNAME="$KEYNAME" node --input-type=module -e "
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { decodeMember, restoreWalletSyncKey, ringEncrypt } from './packages/core/dist/index.js';
@@ -24,15 +25,17 @@ const pt = randomBytes(32);
 writeFileSync('/tmp/gate-a.pt', pt);
 writeFileSync('/tmp/gate-a.ct', ringEncrypt(wsek, process.env.KEYNAME, pt));
 console.log('laptop: encrypted 32 bytes under', process.env.KEYNAME);
-" MEMBER="$(cat "$MEMBER_FILE")" KEYNAME="$KEYNAME"
+"
 echo "container: restoring + decrypting with ONLY KLAXON_MEMBER…"
+# The repo is mounted read-only as a stand-in for a CI checkout + `pnpm install` (pnpm's symlinked
+# node_modules only resolves with the tree intact). The ONLY secret handed in is KLAXON_MEMBER.
 docker run --rm \
   -e MEMBER="$(cat "$MEMBER_FILE")" -e KEYNAME="$KEYNAME" \
-  -v "$ROOT/packages/core/dist:/core:ro" -v "$ROOT/node_modules:/node_modules:ro" \
+  -v "$ROOT:/work:ro" -w /work \
   -v /tmp/gate-a.ct:/gate-a.ct:ro -v /tmp/gate-a.pt:/gate-a.pt:ro \
   node:24-bookworm-slim node --input-type=module -e "
 import { readFileSync } from 'node:fs';
-import { decodeMember, restoreWalletSyncKey, ringDecrypt } from '/core/index.js';
+import { decodeMember, restoreWalletSyncKey, ringDecrypt } from '/work/packages/core/dist/index.js';
 const wsek = await restoreWalletSyncKey(decodeMember(process.env.MEMBER));
 const pt = ringDecrypt(wsek, process.env.KEYNAME, readFileSync('/gate-a.ct'));
 if (!pt.equals(readFileSync('/gate-a.pt'))) { console.error('GATE A FAILED: plaintext mismatch'); process.exit(1); }
