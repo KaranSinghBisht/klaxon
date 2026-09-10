@@ -272,6 +272,36 @@ describe("x402 facilitator health", () => {
   });
 });
 
+describe("x402 on-chain verification", () => {
+  const config = loadEnv({
+    KLAXON_PUBLIC_URL: "https://witness.test",
+    WITNESS_MASTER: "5a".repeat(32),
+    HEDERA_OPERATOR_ID: "0.0.4820",
+    HEDERA_OPERATOR_KEY: "0xdeadbeef",
+    KLAXON_REGISTRY: "0x1111111111111111111111111111111111111111",
+    X402_FACILITATOR: "https://facilitator.test",
+  });
+
+  it("names the runner as payer, not the facilitator that paid the bigger network fee", async () => {
+    // Gate B's real shape: Blocky402 (the fee payer) is debited MORE than the runner, so reading
+    // the "most negative" debit would name the facilitator the payer — and check 1 would then
+    // refuse a legitimate release whose registered pay account is the runner. Match the credit.
+    const mirror = new MirrorNodeClient({
+      baseUrl: "https://mirror.test",
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ transactions: [tx()] }), { status: 200 }),
+    });
+    const adapter = new X402PaymentAdapter(config, silentLogger, mirror);
+    const outcome = await adapter.verifySettledOnChain("0.0.7162784@1.2", {
+      memo: "a".repeat(64),
+      toAccount: "0.0.4820",
+      minAmount: "100000",
+    });
+    // 0.0.10405046 is the runner (-100000); 0.0.7162784 is Blocky402's -246668 fee debit.
+    expect(outcome).toMatchObject({ ok: true, payerAccount: "0.0.10405046", amount: "100000" });
+  });
+});
+
 describe("ntfy alarm", () => {
   it("sends priority 5 with a HashScan click target and never throws", async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];

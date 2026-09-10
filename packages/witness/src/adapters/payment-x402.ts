@@ -205,7 +205,7 @@ export class X402PaymentAdapter implements PaymentPort {
     return {
       ok: true,
       consensusTimestamp: transfer.consensus_timestamp,
-      payerAccount: payerOf(transfer, expect.toAccount),
+      payerAccount: payerOf(transfer, expect.toAccount, credited),
       amount: credited.toString(),
     };
   }
@@ -253,11 +253,16 @@ export class X402PaymentAdapter implements PaymentPort {
 function payerOf(
   tx: { transfers: { account: string; amount: number }[] },
   witnessAccount: string,
+  credited: bigint,
 ): string {
-  const debit = (tx.transfers ?? [])
-    .filter((t) => t.amount < 0 && t.account !== witnessAccount)
-    .sort((a, b) => a.amount - b.amount)[0];
-  return debit?.account ?? "";
+  // The payer funded the value: their debit equals what the witness was credited. The facilitator's
+  // debit is the (larger, unrelated) network fee, so match the amount — never "most negative",
+  // which picks the fee payer. Gate B surfaced exactly that: Blocky402's -262247 fee debit
+  // out-sorted the runner's -100000 value debit.
+  const match = (tx.transfers ?? []).find(
+    (t) => t.account !== witnessAccount && t.amount < 0 && BigInt(-t.amount) === credited,
+  );
+  return match?.account ?? "";
 }
 
 /** `hedera:testnet` registers under `hedera:*` so the scheme covers every Hedera network id. */
