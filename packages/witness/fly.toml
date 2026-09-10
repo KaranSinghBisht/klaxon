@@ -13,6 +13,11 @@ primary_region = "iad"          # near GitHub-hosted runners (US East) — cuts 
   SEPOLIA_RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com"
   KLAXON_SOURCE = "raw"
   CONFIRMATIONS = "3"
+  X402_NETWORK = "hedera:testnet"
+  KLAXON_PUBLIC_URL = "https://klaxon-witness.fly.dev"
+  # KlaxonRegistry on Sepolia (deployed 2026-09-10); the watcher's getLogs cursor starts at the block.
+  KLAXON_REGISTRY = "0xd93f10104d4069B26c8ee883c3eAb3AAaaD56885"
+  KLAXON_REGISTRY_DEPLOY_BLOCK = "11674139"
 
 [http_service]
   internal_port = 8080
