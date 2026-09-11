@@ -18,3 +18,4 @@ witness-master*
 
 # OMC session state
 .omc/
+deploy/aws/witness.env
