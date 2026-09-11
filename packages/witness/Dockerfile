@@ -17,7 +17,7 @@ RUN pnpm install --frozen-lockfile --filter @klaxon/witness...
 COPY . .
 RUN pnpm --filter @klaxon/core build \
  && pnpm --filter @klaxon/witness build \
- && pnpm deploy --filter @klaxon/witness --prod /out
+ && pnpm deploy --filter @klaxon/witness --prod --legacy /out
 
 FROM node:24-bookworm-slim
 WORKDIR /app

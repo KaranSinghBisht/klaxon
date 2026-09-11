@@ -1,0 +1,31 @@
+# KLAXON witness on one EC2 box: the container + Caddy for automatic HTTPS (Let's Encrypt via an
+# sslip.io hostname, so there's no domain to buy), with /data on the instance's EBS volume. One
+# machine on purpose — node:sqlite is single-writer and the registry watcher must never miss a block.
+services:
+  witness:
+    image: klaxon-witness:latest
+    restart: always
+    env_file: ./witness.env
+    volumes:
+      - ./data:/data
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS to your <ip-with-dashes>.sslip.io host}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - witness
+
+volumes:
+  caddy_data:
+  caddy_config:

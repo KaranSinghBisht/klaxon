@@ -1,0 +1,5 @@
+# One line does automatic HTTPS. SITE_ADDRESS is <elastic-ip-with-dashes>.sslip.io — sslip.io
+# resolves that host to the IP in it, so Let's Encrypt can issue a real cert with no domain.
+{$SITE_ADDRESS} {
+	reverse_proxy witness:8080
+}

@@ -1,0 +1,25 @@
+# Keep the host's node_modules OUT of the build context: its macOS/arm binaries and pnpm symlink
+# store overwrite the clean node_modules the container installs from the lockfile, and pnpm's
+# build-time deps check then fails. The container builds its own dependency tree.
+**/node_modules
+**/dist
+**/out
+**/.turbo
+**/coverage
+
+# secrets must never bake into an image
+.env
+.env.*
+
+# not needed to build the witness, and heavy
+.git
+.omc
+.claude
+docs
+planning
+demo
+packages/contracts/cache
+packages/contracts/broadcast
+packages/contracts/out
+packages/contracts/lib
+*.log
