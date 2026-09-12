@@ -22,6 +22,24 @@ function runner(res: { code?: number; stdout?: string; stderr?: string }): {
   return { impl, calls };
 }
 
+describe("extractTxHash on real wallet-cli output", () => {
+  it("reads tx_hash from the shape a device-signed send actually returns", () => {
+    // Captured from a Nano S Plus. The key is snake_case; the CLI used to look only for txHash and
+    // printed "(no tx hash in wallet-cli output)" after a transaction that had in fact landed.
+    const settled = {
+      status: "success",
+      command: "send",
+      recipient: "0xd93f10104d4069B26c8ee883c3eAb3AAaaD56885",
+      amount: "0 ETH",
+      fee: "0.00006027 ETH",
+      tx_hash: "0x21a4a1a8d3ee4cc21e64b9ebe44924fac2ee79e3b656566927d2349ef7557529",
+    };
+    expect(extractTxHash(settled)).toBe(
+      "0x21a4a1a8d3ee4cc21e64b9ebe44924fac2ee79e3b656566927d2349ef7557529",
+    );
+  });
+});
+
 describe("parseWalletCliEnvelope", () => {
   it("takes the final result from the NDJSON stream a device-signed send emits (D15)", () => {
     // The exact two-line output captured from a real `wallet-cli send --output json` on a Nano S

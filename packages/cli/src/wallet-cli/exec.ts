@@ -229,11 +229,23 @@ export function extractAccountLabel(data: unknown, network: string): string {
   return preferred ?? (labels[0] as string);
 }
 
-const TX_HASH_KEYS = ["txHash", "transactionHash", "hash", "tx", "transaction", "txid"];
+// `tx_hash` first: it is the key a real `wallet-cli send --output json` emits, captured on a
+// Nano S Plus 2026-09-12. The camelCase spellings stay as fallbacks for other versions.
+const TX_HASH_KEYS = [
+  "tx_hash",
+  "txHash",
+  "transaction_hash",
+  "transactionHash",
+  "hash",
+  "tx",
+  "transaction",
+  "txid",
+];
 
 /**
- * TODO(day1): pin to captured real output — the shape of `data.*` for `send` is the one
- * wallet-cli response nobody can see without hardware, so any 0x-64-hex under a plausible key wins.
+ * Pinned to captured real output (2026-09-12): `send` answers with a flat
+ * `{status:"success", ..., tx_hash:"0x…"}`. Other keys remain accepted — any 0x-64-hex under a
+ * plausible key wins — so a wallet-cli that renames the field still works.
  */
 export function extractTxHash(data: unknown): string | undefined {
   for (const key of TX_HASH_KEYS) {
