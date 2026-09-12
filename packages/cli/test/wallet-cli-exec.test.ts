@@ -23,6 +23,26 @@ function runner(res: { code?: number; stdout?: string; stderr?: string }): {
 }
 
 describe("parseWalletCliEnvelope", () => {
+  it("takes the final result from the NDJSON stream a device-signed send emits (D15)", () => {
+    // The exact two-line output captured from a real `wallet-cli send --output json` on a Nano S
+    // Plus: a device-state progress event, then the result. A strict JSON.parse of the whole thing
+    // is what broke `klaxon init` at commitPolicy.
+    const stream =
+      '{"type":"device-state","command":"send","state":{"code":"awaiting_approval","reason":"sign"},"message":"Review on device."}\n' +
+      '{"status":"success","command":"send","recipient":"0xd93f","amount":"0 ETH","fee":"0.00006027 ETH","tx_hash":"0x21a4"}';
+    const env = parseWalletCliEnvelope(stream);
+    expect(env.ok).toBe(true);
+    expect(env.shape).toBe("status");
+    expect((env.data as { tx_hash?: string }).tx_hash).toBe("0x21a4");
+  });
+
+  it("throws when the stream is only device-state events, never a result", () => {
+    const onlyProgress =
+      '{"type":"device-state","state":{"code":"awaiting_approval"}}\n' +
+      '{"type":"device-state","state":{"code":"signing"}}';
+    expect(() => parseWalletCliEnvelope(onlyProgress)).toThrowError(CliError);
+  });
+
   it("normalises the {ok:true,data} shape appendix B saw", () => {
     const env = parseWalletCliEnvelope('{"ok":true,"data":{"txHash":"0x1"}}');
     expect(env).toMatchObject({ ok: true, shape: "ok-data", data: { txHash: "0x1" } });

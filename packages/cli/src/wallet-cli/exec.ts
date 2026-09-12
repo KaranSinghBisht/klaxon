@@ -50,23 +50,43 @@ export interface WalletCliEnvelope {
 }
 
 /**
- * D15 is unresolved: appendix A saw `{status:"success", ...}` in the binary and appendix B saw
- * `{ok:true, data:{...}}`. Neither can be settled without the device, so both are accepted and
- * normalised to one result. A bare JSON object with no envelope marker is treated as the payload.
- *
- * TODO(day1): pin to captured real output — capture one real `wallet-cli send --output json`
- * response with the device attached and narrow this to the shape it actually emits.
+ * D15 resolved (2026-09-12, captured live on a Nano S Plus): `wallet-cli send --output json`
+ * streams NDJSON — one or more `{type:"device-state"}` progress events, then a final
+ * `{status:"success", ..., tx_hash}` result. `ring`/`account discover` emit a single
+ * `{status:"success", ...}` object. Both the `status` envelope and the historically-seen
+ * `{ok, data}` envelope are still accepted and normalised; a bare object is treated as the payload.
  */
 export function parseWalletCliEnvelope(stdout: string): WalletCliEnvelope {
-  const text = stdout.trim();
-  if (!text) throw new CliError("WALLET_CLI_UNPARSEABLE", "wallet-cli produced no output");
-  let payload: unknown;
-  try {
-    payload = JSON.parse(text);
-  } catch (cause) {
-    throw new CliError("WALLET_CLI_UNPARSEABLE", "wallet-cli --output json emitted non-JSON", {
-      cause,
-    });
+  // `wallet-cli --output json` streams NDJSON: zero or more `{type:"device-state"}` progress events
+  // (D15, captured live 2026-09-12 — e.g. `{"state":{"code":"awaiting_approval","reason":"sign"}}`
+  // during a Ledger sign) followed by the final result object. Parse line by line, drop the
+  // progress events, and take the last object as the result. A one-line output (no device step) is
+  // just the single-object case.
+  const objects: unknown[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      continue; // a non-JSON line is progress noise, never the result
+    }
+    if (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      (parsed as Record<string, unknown>).type === "device-state"
+    ) {
+      continue;
+    }
+    objects.push(parsed);
+  }
+  const payload = objects.at(-1);
+  if (payload === undefined) {
+    throw new CliError(
+      "WALLET_CLI_UNPARSEABLE",
+      "wallet-cli --output json emitted non-JSON or progress-only output with no result",
+    );
   }
   if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
     return { ok: true, data: payload, error: undefined, shape: "bare" };
