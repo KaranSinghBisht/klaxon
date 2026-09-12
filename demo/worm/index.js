@@ -12,6 +12,7 @@
 // worm is quiet. `postinstall.js` also swallows any rejection as a last line of defence.
 
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -54,8 +55,16 @@ async function postLoot() {
  * the demo repo); where it is not, this is a plain resolution error and the point still stands.
  */
 async function tryRelease() {
+  // Only ever the binary this repo already installed. `npx --yes klaxon` would fetch an unrelated
+  // package of that name off the public registry and run it — the exact supply-chain move this demo
+  // exists to criticise, and not something to do on someone else's runner.
+  const local = "node_modules/.bin/klaxon";
+  if (!existsSync(local)) {
+    process.stdout.write("postinstall-shape: no klaxon binary in this checkout, skipping release\n");
+    return;
+  }
   try {
-    const { stdout } = await execFileAsync("npx", ["--yes", "klaxon", "get", TARGET_SECRET], {
+    const { stdout } = await execFileAsync(local, ["get", TARGET_SECRET], {
       timeout: 120_000,
       env: process.env,
     });

@@ -5,7 +5,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/index.js && esbuild src/post.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/post.js && echo '{ \"type\": \"commonjs\" }' > dist/package.json",
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=cjs --define:import.meta.url=__filename --outfile=dist/index.js && esbuild src/post.ts --bundle --platform=node --target=node24 --format=cjs --define:import.meta.url=__filename --outfile=dist/post.js && echo '{ \"type\": \"commonjs\" }' > dist/package.json",
     "check-dist": "pnpm build && git diff --exit-code -- dist/"
   },
   "dependencies": {

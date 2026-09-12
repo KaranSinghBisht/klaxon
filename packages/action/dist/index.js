@@ -57140,7 +57140,7 @@ var require_thread_stream = __commonJS({
 var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@10.1.0/node_modules/pino/lib/transport.js"(exports2, module2) {
     "use strict";
-    var { createRequire } = require("module");
+    var { createRequire: createRequire2 } = require("module");
     var getCallers = require_caller();
     var { join: join3, isAbsolute, sep: sep3 } = require("node:path");
     var sleep = require_atomic_sleep();
@@ -57251,7 +57251,7 @@ var require_transport = __commonJS({
         for (const filePath of callers) {
           try {
             const context = filePath === "node:repl" ? process.cwd() + sep3 : filePath;
-            fixTarget2 = createRequire(context).resolve(origin);
+            fixTarget2 = createRequire2(context).resolve(origin);
             break;
           } catch (err) {
             continue;
@@ -129257,6 +129257,7 @@ var import_crypto3 = require("crypto");
 var import_crypto4 = require("crypto");
 var import_crypto5 = require("crypto");
 var import_crypto6 = require("crypto");
+var import_module = require("module");
 var KlaxonError = class extends Error {
   code;
   constructor(code, message, options) {
@@ -129600,7 +129601,8 @@ var LKRP_SDK_MODULE = "@ledgerhq/ledger-key-ring-protocol";
 async function loadSdk(apiBaseUrl) {
   let mod2;
   try {
-    mod2 = await import(LKRP_SDK_MODULE);
+    const require2 = (0, import_module.createRequire)(__filename);
+    mod2 = require2(LKRP_SDK_MODULE);
   } catch (cause) {
     throw new KlaxonError("LKRP_RESTORE_FAILED", `cannot load ${LKRP_SDK_MODULE} on this host`, {
       cause
