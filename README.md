@@ -2,15 +2,29 @@
 
 > **Stolen, but never quietly.**
 
+**Take everything and you still cannot use it.** Take the encrypted share straight out of the
+repository. Take the Key Ring credential off the runner. Take the payment key. Take a copy of the
+release step itself. None of it releases the secret anywhere except the one job the owner
+authorized — and finding that out costs a payment that is public before the refusal is.
+
+That is not a thought experiment. In this repository's own demo, a compromised npm dependency read
+**147 environment variables out of the protected pipeline and found nothing worth having**, and an
+attacker holding every credential above ran the real release step from a job they controlled, paid
+for it, and was refused. Both runs are linked below, with their Hedera receipts.
+
 Your CI secrets are split in two. Share A is encrypted under your **Ledger Key Ring** and lives in
 your repo. Share B is released by a witness only when **the runner itself has paid on Hedera** — a
 sub-cent x402 payment whose memo is the hash of a signed release commitment naming the secret, the
 environment, the run, and an ephemeral key only that runner holds. Neither share is useful alone.
 
-**No secret can be decrypted for the first time without a commitment the runner wrote to a public
-ledger first.** The witness can't omit it — the runner authored it. The witness can't forge it — it
-needs GitHub's signature and the runner's. Nobody can back-date it — Hedera consensus timestamps it.
-When a supply-chain worm tries, it *pays to be refused*.
+**And no secret can be decrypted for the first time without a commitment the runner wrote to a
+public ledger first.** The witness can't omit it — the runner authored it. The witness can't forge
+it — it needs GitHub's signature and the runner's. Nobody can back-date it — Hedera consensus
+timestamps it.
+
+One exception, stated here rather than buried: a job that was *already* authorized can read what it
+was authorized to receive. That is true of every system that hands a process a working credential,
+and the precise boundary is [below](#the-claim-stated-precisely).
 
 ```mermaid
 flowchart TB
