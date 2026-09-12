@@ -177,26 +177,57 @@ Per-repo checklist, including what the split job pattern does and does not buy y
 
 ## Verify it yourself
 
-`klaxon-verify` re-derives the entire release history from public data — the Hedera mirror node, the
-project's HCS topic, and Sepolia. **It never talks to the witness**, and it shares no code with it:
-`@klaxon/verify` has a zero-line dependency on `@klaxon/core` and reimplements JCS canonicalization,
-hashing and the JWT path independently, so "it doesn't trust me" is literally true.
+Nothing here asks you to trust the witness, and the fastest checks need no clone at all.
 
-Every package here is `"private": true`, so `npx` resolves nothing, and there is no `klaxon verify`
-subcommand — the verifier is a separate binary. From a clean checkout, on any machine:
+**The service is live.** It answers an x402 challenge for any commitment you name:
+
+```bash
+curl -s https://44-198-37-65.sslip.io/.well-known/klaxon.json | jq
+curl -si https://44-198-37-65.sslip.io/release/$(openssl rand -hex 32) | head -3   # 402 + PAYMENT-REQUIRED
+```
+
+**A real release, and a real refusal, on public Hedera data.** The first is the payment that released
+`DEPLOYER_PRIVATE_KEY` into a production deploy; the second is a worm that paid and was refused. In
+both, the transaction memo **is** the commitment hash:
+
+```bash
+# released — memo decodes to 4fc22410…, the same h as the `released` message on the topic
+curl -s https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789236322-630057787 \
+  | jq -r '.transactions[0].memo_base64' | base64 -d; echo
+
+# the audit topic: released, refused (class policy, check 4), unrevoke
+curl -s 'https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10503843/messages?limit=10&order=asc' \
+  | jq -r '.messages[] | .sequence_number, (.message|@base64d)' | head -40
+```
+
+**The independent verifier.** `klaxon-verify` re-derives the entire release history from the mirror
+node, the HCS topic and Sepolia. **It never talks to the witness**, and shares no code with it:
+`@klaxon/verify` has a zero-line dependency on `@klaxon/core` and reimplements JCS canonicalization,
+hashing and the JWT path separately, so "it does not trust me" is literally true.
 
 ```bash
 git clone https://github.com/KaranSinghBisht/klaxon && cd klaxon && pnpm install
-pnpm --filter @klaxon/verify dev --topic 0.0.X --witness 0.0.Y --registry 0xREG
+cd packages/verify && npx tsx src/bin.ts \
+  --topic 0.0.10503843 \
+  --witness 0.0.10455530 \
+  --registry 0xd93f10104d4069B26c8ee883c3eAb3AAaaD56885
 ```
 
-`--topic`, `--witness` and `--registry` are all required. Add `--json` for a machine-readable report.
-Exit codes: `0` clean, `1` violations found, `2` the read could not complete. `--since` takes a Hedera
-consensus timestamp (`seconds.nanos`), not a date.
+Add `--json` for a machine-readable report. Exit codes: `0` clean, `1` violations found, `2` the read
+could not complete. `--since` takes a Hedera consensus timestamp (`seconds.nanos`), not a date.
 
 It reports `WITNESS WITHHELD` (a payment with no message), `DOUBLE_RELEASE`, `ORDERING`,
 `MESSAGE_INCOMPLETE` and `RELEASE_WHILE_REVOKED`, checks every JWT against the keys that were live at
 the *payment's* consensus time, and checks the policy against the hash anchored on Sepolia.
+
+> **It currently reports one violation, and that is the tool working.** A Gate B test payment on
+> 2026-09-10 went to this witness account from a local instance that never published a message for
+> it. A payment to the witness with no matching record on the topic is exactly what `WITNESS WITHHELD`
+> is for, and the verifier finds it without being told. The alternative — a verifier that only ever
+> prints "clean" — would prove nothing.
+
+Protocol details, including the wire format of every message on the topic:
+[`docs/PROTOCOL.md`](docs/PROTOCOL.md).
 
 ## Prior work & disclosure
 
