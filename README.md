@@ -14,20 +14,36 @@ When a supply-chain worm tries, it *pays to be refused*.
 
 ## Status — read this first
 
-This is a five-day hackathon build (ETHOnline 2026). As of **2026-09-09**:
+A hackathon build (ETHOnline 2026). As of **2026-09-13** both halves have been exercised on real
+hardware and real networks. Nothing below is mocked, stubbed or re-enacted.
 
-- **No physical Ledger has been connected.** No `ring init`, no device signature, no trustchain.
-  Gate A (`scripts/gate-a.sh`) has not run, and `packages/core/test/wallet-cli-interop.test.ts` is
-  skipped for that reason.
-- **Nothing is deployed on any chain.** `packages/contracts/` has no `broadcast/` directory. No
-  ERC-7730 descriptor has been filed.
-- The one piece of captured runtime evidence is `docs/evidence/oidc-probe.json` — a real GitHub
-  Actions OIDC token's claims.
-- Every device-dependent statement in `docs/LEDGER-FEEDBACK.md` is marked *pending Gate A*.
+**Hardware.** A physical Ledger Nano S Plus enrolled the Key Ring with `wallet-cli ring init`, and
+device-signed `register`, `commitPolicy` and `unrevoke` against the registry. Gate A
+(`scripts/gate-a.sh`) passes: share A is decrypted inside a clean `node:24` container holding only
+the member credential — no device, no keychain — and the real `wallet-cli ring decrypt` opens the
+very same ciphertext.
 
-The protocol, the nine witness checks, the independent verifier and the crypto are implemented and
-unit-tested. The hardware and on-chain halves are not yet exercised. This section is the honest
-boundary between the two, and it is the first thing to check against when reading anything else here.
+**On chain.** Registry [`0xd93f10104d4069B26c8ee883c3eAb3AAaaD56885`](https://sepolia.etherscan.io/address/0xd93f10104d4069B26c8ee883c3eAb3AAaaD56885)
+on Sepolia holds the project's owner and the policy hash its Ledger anchored. Hedera topic
+`0.0.10503843` carries every release and every refusal.
+
+**End to end, in CI.** [`klaxon-demo`](https://github.com/KaranSinghBisht/klaxon-demo) runs three
+workflows on hosted GitHub runners:
+
+| Workflow | Outcome | Evidence |
+|---|---|---|
+| `ordinary` | key stolen | a postinstall worm reads a plain CI secret out of the job environment |
+| `deploy` | released | commitment `4fc22410…`, paid by tx `0.0.7162784@1789236322.630057787`; the mirror node shows the transaction memo **equals** that commitment |
+| `worm-attack` | **paid, then refused** | commitment `eba93fa7…`; the witness was credited 0.001 ℏ, refused at check 4 (no environment), and revoked the project |
+
+The refusal is the one to read twice. The attacker held the member credential, the pay key, the
+encrypted share and a copy of the release step, ran it, and paid — and the payment is what put the
+attempt on a public ledger.
+
+**Not done:** no ERC-7730 clear-signing descriptor has been filed, so policy commits are blind-signed;
+and the witness is a single instance on one host ([`docs/OPERATIONS.md`](docs/OPERATIONS.md)).
+
+What KLAXON does *not* claim is unchanged, and is stated in full below.
 
 ## Why
 
