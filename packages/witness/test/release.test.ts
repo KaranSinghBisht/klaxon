@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   assertNotLeaked,
   CommitmentSchema,
@@ -512,17 +513,33 @@ jobs:
     expect(result.body).toMatchObject({ ok: false, class: "auth", check: 1 });
   });
 
-  it("refuses policy/1 when the debit is not the project's registered payer", async () => {
+  it("refuses a stranger's payment WITHOUT revoking — the unauthenticated revocation hole", async () => {
     // `payerOf()` computed the debited account and nothing compared it to anything, so any funded
     // Hedera account could buy this project's release: `h` is public, and the memo is the only
-    // thing tying a transfer to a commitment.
+    // thing tying a transfer to a commitment. Hence the comparison.
+    //
+    // But classifying the mismatch as `policy` opened something worse than it closed. Check 1 runs
+    // before the OIDC token is parsed and `project_id` is published in the witness manifest, so a
+    // policy-class failure here handed any stranger a remote kill switch on any registered project:
+    // read the id, pay from your own account, POST `{"jwt":"x","sig":"x"}`, and the operator's
+    // deploys are frozen until someone taps a physical Ledger. No GitHub identity anywhere in that
+    // sequence. `revoked` staying false is the entire point of this test.
     h.payment.payer = "0.0.9999999";
     const result = await h.release();
 
     expect(result.status).toBe(403);
-    expect(result.body).toMatchObject({ ok: false, class: "policy", check: 1, revoked: true });
+    expect(result.body).toMatchObject({ ok: false, class: "auth", check: 1, revoked: false });
     expect(result.body.reason).toContain(PAY_ACCOUNT);
-    expect(revoked()).toBe(true);
+    expect(revoked()).toBe(false);
+  });
+
+  it("leaves no revoking check reachable before the OIDC token is verified", async () => {
+    // The structural guarantee behind the test above: every check that can revoke sits after
+    // `checkJwt`, which binds the token's repository_id to the project. So reaching a revocation at
+    // all requires running a workflow in the victim's own repository. If a future check revokes
+    // before check 2, this fails and the kill switch is back.
+    const src = readFileSync(new URL("../src/checks/c1-payment.ts", import.meta.url), "utf8");
+    expect(src).not.toContain('fail("policy"');
   });
 
   it("releases when the debit is the registered payer", async () => {

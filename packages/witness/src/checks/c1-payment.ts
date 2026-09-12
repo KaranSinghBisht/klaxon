@@ -49,10 +49,22 @@ export async function checkPayment(
   //
   // `pay_account` is null for a project registered before the binding existed. Those are skipped
   // rather than refused: an operator who never named a payer cannot be in breach of one.
+  //
+  // `auth`, not `policy`, and the distinction is load-bearing. Check 1 runs before the OIDC token
+  // is parsed, and `project_id` is published in the public manifest, so classifying this as a
+  // policy breach let ANY stranger revoke ANY registered project for the price of one payment:
+  // read the id, pay the witness from your own account, POST any parseable body, and the operator's
+  // pipeline is frozen until someone taps the physical Ledger. No GitHub identity required at any
+  // point. Every other revoking check sits behind `checkJwt`, which binds `repository_id` to the
+  // project, so this was the only unauthenticated path to revocation.
+  //
+  // It is also the right classification on the merits, and the same argument check 5 already makes
+  // for pull-request events: someone sending us money proves nothing about whether the operator's
+  // policy was broken. Refuse it, publish it, do not brick their CI over it.
   const registered = attempt.project.pay_account;
   if (registered && settled.payerAccount !== registered) {
     return fail(
-      "policy",
+      "auth",
       1,
       `payment was debited from ${settled.payerAccount || "an account the transfer list does not name"}, not the project's registered payer ${registered}`,
     );
