@@ -2,7 +2,7 @@ import { x402Client } from "@x402/core/client";
 import type { Network, PaymentRequirements } from "@x402/core/types";
 import type { PrivateKey } from "@x402/hedera";
 import { ExactHederaScheme } from "@x402/hedera/exact/client";
-import { klaxonSigner } from "./signer.js";
+import { type ExpectedCommitment, klaxonSigner } from "./signer.js";
 
 /** CAIP-2, colon form — `hedera-testnet` is the v1 spelling and is not what Blocky402 advertises. */
 export const HEDERA_TESTNET: Network = "hedera:testnet";
@@ -16,6 +16,8 @@ export interface PayClientOptions {
   witnessAccount: string;
   /** Hard per-payment cap in tinybars, from the `max-tinybars` input. */
   maxTinybars: string;
+  /** Set by the transport to the `h` it is about to request, so the signer can refuse any other. */
+  expected?: ExpectedCommitment;
 }
 
 /**
@@ -38,7 +40,7 @@ export function buildPayClient(o: PayClientOptions): x402Client {
     schemes: [
       {
         network: HEDERA_TESTNET,
-        client: new ExactHederaScheme(klaxonSigner(o.payAccount, o.payKey)),
+        client: new ExactHederaScheme(klaxonSigner(o.payAccount, o.payKey, o.expected)),
       },
     ],
     spendControls: {

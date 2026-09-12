@@ -121,14 +121,18 @@ export async function run(deps: RunDeps): Promise<void> {
 }
 
 async function buildTransport(o: TransportOptions): Promise<KlaxonReleaseTransport> {
+  // One box, shared by the signer and the transport. The transport fills it in with the commitment
+  // it is about to request; the signer refuses to stamp anything else.
+  const expected: { h: string | null } = { h: null };
   const witnessAccount = await fetchWitnessAccount(o.witness, fetch);
   const client = buildPayClient({
+    expected,
     payAccount: o.payAccount,
     payKey: PrivateKey.fromStringECDSA(o.payKey),
     witnessAccount,
     maxTinybars: o.maxTinybars,
   });
-  return httpReleaseTransport(o.witness, wrapFetchWithPayment(fetch, client));
+  return httpReleaseTransport(o.witness, wrapFetchWithPayment(fetch, client), expected);
 }
 
 export function actionDeps(): RunDeps {

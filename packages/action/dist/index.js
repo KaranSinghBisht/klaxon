@@ -166345,7 +166345,7 @@ var ExactHederaScheme = class {
 var import_proto6 = __toESM(require_lib2(), 1);
 
 // src/signer.ts
-function klaxonSigner(accountId, key) {
+function klaxonSigner(accountId, key, expected = { h: null }) {
   const me = y3.fromString(accountId);
   return {
     accountId: me.toString(),
@@ -166358,6 +166358,11 @@ function klaxonSigner(accountId, key) {
       }
       if (typeof memo2 !== "string" || memo2.length === 0) {
         throw new Error("KLAXON: 402 did not carry extra.memo \u2014 refusing to pay");
+      }
+      if (expected.h !== null && memo2 !== expected.h) {
+        throw new Error(
+          `KLAXON: the 402 asked us to stamp a commitment we did not make (got ${memo2.slice(0, 16)}\u2026, expected ${expected.h.slice(0, 16)}\u2026) \u2014 refusing to pay`
+        );
       }
       const amount = BigInt(req.amount);
       const tx = new T2().addHbarTransfer(me, e4.fromTinybars((-amount).toString())).addHbarTransfer(y3.fromString(req.payTo), e4.fromTinybars(amount.toString())).setTransactionMemo(memo2).setTransactionId(i3.generate(y3.fromString(feePayer)));
@@ -166384,7 +166389,7 @@ function buildPayClient(o41) {
     schemes: [
       {
         network: HEDERA_TESTNET,
-        client: new ExactHederaScheme(klaxonSigner(o41.payAccount, o41.payKey))
+        client: new ExactHederaScheme(klaxonSigner(o41.payAccount, o41.payKey, o41.expected))
       }
     ],
     spendControls: {
@@ -166478,12 +166483,13 @@ function payTxFrom(header, status) {
   }
   return decodePaymentResponseHeader(header).transaction;
 }
-function httpReleaseTransport(witness, payFetch) {
+function httpReleaseTransport(witness, payFetch, expected = { h: null }) {
   const base = normalizeWitness(witness);
   let refusal = null;
   return {
     lastRefusal: () => refusal,
     async release(h12, body) {
+      expected.h = h12;
       const url2 = `${base}/release/${h12}`;
       let res;
       try {
@@ -166573,14 +166579,16 @@ async function run(deps) {
   }
 }
 async function buildTransport(o41) {
+  const expected = { h: null };
   const witnessAccount = await fetchWitnessAccount(o41.witness, fetch);
   const client = buildPayClient({
+    expected,
     payAccount: o41.payAccount,
     payKey: g3.fromStringECDSA(o41.payKey),
     witnessAccount,
     maxTinybars: o41.maxTinybars
   });
-  return httpReleaseTransport(o41.witness, wrapFetchWithPayment(fetch, client));
+  return httpReleaseTransport(o41.witness, wrapFetchWithPayment(fetch, client), expected);
 }
 function actionDeps() {
   return {

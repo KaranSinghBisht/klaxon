@@ -49,6 +49,28 @@ describe("klaxonSigner", () => {
     ).rejects.toThrow(/extra\.memo/);
   });
 
+  it("refuses to stamp a commitment the runner did not make", async () => {
+    // The claim is that the runner authors the record. Accepting whatever `h` the 402 quotes hands
+    // the pen back to the witness: the runner would pay, in its own name and from its own account,
+    // to commit to a release it never requested. The transport sets `expected.h` to the URL it is
+    // about to POST, so any other value here means the server is answering a different question.
+    const signer = klaxonSigner(RUNNER, PrivateKey.generateECDSA(), { h: "a".repeat(64) });
+    await expect(
+      signer.createPartiallySignedTransferTransaction(
+        requirements({ feePayer: FEE_PAYER, memo: "b".repeat(64) }),
+      ),
+    ).rejects.toThrow(/did not make/);
+  });
+
+  it("pays when the memo is the commitment the runner is requesting", async () => {
+    const signer = klaxonSigner(RUNNER, PrivateKey.generateECDSA(), { h: MEMO });
+    await expect(
+      signer.createPartiallySignedTransferTransaction(
+        requirements({ feePayer: FEE_PAYER, memo: MEMO }),
+      ),
+    ).resolves.toBeTypeOf("string");
+  });
+
   it("refuses to pay a 402 that carries no feePayer", async () => {
     const signer = klaxonSigner(RUNNER, PrivateKey.generateECDSA());
     await expect(

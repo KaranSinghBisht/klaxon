@@ -36,13 +36,20 @@ function payTxFrom(header: string | null, status: number): string {
  * `pay_tx` comes back in the `PAYMENT-RESPONSE` header because the witness learns it from
  * settlement and the body never carries it (PROTOCOL §2).
  */
-export function httpReleaseTransport(witness: string, payFetch: FetchLike): KlaxonReleaseTransport {
+export function httpReleaseTransport(
+  witness: string,
+  payFetch: FetchLike,
+  /** Handed to the signer so it can refuse to stamp any commitment but the one we are requesting. */
+  expected: { h: string | null } = { h: null },
+): KlaxonReleaseTransport {
   const base = normalizeWitness(witness);
   let refusal: ReleaseRefused | null = null;
 
   return {
     lastRefusal: () => refusal,
     async release(h: string, body: ReleaseRequestBody) {
+      // Before any 402 can be answered: this, and nothing else, is what we will pay to commit to.
+      expected.h = h;
       const url = `${base}/release/${h}`;
       let res: Response;
       try {
