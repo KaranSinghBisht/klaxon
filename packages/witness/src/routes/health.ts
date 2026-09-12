@@ -13,7 +13,7 @@ import type { WitnessContext } from "../context.js";
  * watcher. Nothing here reports a flag latched at boot — a witness that was healthy once is not a
  * witness that is healthy now.
  */
-const MAX_CURSOR_LAG_S = 300;
+export const MAX_CURSOR_LAG_S = 300;
 
 export function registerHealthRoute(app: FastifyInstance, ctx: WitnessContext): void {
   app.get("/health", async (_req, reply) => {

@@ -1,11 +1,13 @@
 import { CommitmentSchema } from "@klaxon/core";
 import { encodePaymentResponseHeader } from "@x402/core/http";
 import type { Network } from "@x402/core/types";
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { PipelineDeps, ReleaseOutcome } from "../checks/pipeline.js";
 import { replayRelease, runRelease } from "../checks/pipeline.js";
 import type { WitnessContext } from "../context.js";
+import { FixedWindowLimiter } from "../http/rate-limit.js";
+import { MAX_CURSOR_LAG_S } from "./health.js";
 
 const H_PARAM = /^[0-9a-f]{64}$/;
 
@@ -25,11 +27,63 @@ const ReleaseBodySchema = z
  * The witness learns `pay_tx` from settlement (`settle.transaction`) — the body never carries it,
  * so a client cannot name someone else's payment. The client reads it back from `PAYMENT-RESPONSE`.
  */
+
+/**
+ * The witness applies policy it learned by following Sepolia. If the watcher has fallen behind, the
+ * policy, the generation and above all the revocation flag may all be stale — so a project the owner
+ * revoked minutes ago can still be served. `/health` already refuses to go green on this, but health
+ * is only advice: nothing in front of this process is obliged to act on it, and the deployed Caddy
+ * simply proxies. So the release path enforces it itself.
+ *
+ * Checked before settlement on purpose. A runner must never be charged for a request the witness
+ * already knows it cannot answer, and `infra` is the honest class: nothing about the operator's
+ * policy has been broken, so nothing is revoked and nothing is published.
+ */
+/**
+ * Answering a release costs the witness roughly 32x what it charges, because the audit record is
+ * chunked across three HCS submits. Unmetered, that turns every refusal a stranger can provoke into
+ * an amplification attack on the operator's balance, and check 7's budget covers successful releases
+ * only. Generous enough that no honest CI fleet notices; low enough that a script does.
+ */
+const RELEASE_RATE_LIMIT = Number(process.env.KLAXON_RELEASE_RATE_LIMIT ?? 60);
+const RELEASE_RATE_WINDOW_MS = Number(process.env.KLAXON_RELEASE_RATE_WINDOW_MS ?? 60_000);
+
+function registryStale(ctx: WitnessContext): number | null {
+  const lag = ctx.registry.lagSeconds();
+  if (lag === null || lag > MAX_CURSOR_LAG_S) return lag ?? -1;
+  return null;
+}
+
 export function registerReleaseRoutes(app: FastifyInstance, ctx: WitnessContext): void {
+  const limiter = new FixedWindowLimiter({
+    limit: RELEASE_RATE_LIMIT,
+    windowMs: RELEASE_RATE_WINDOW_MS,
+  });
+
+  /** Refuses before any work, any chain read and any settlement. Returns true when it answered. */
+  const limited = (req: FastifyRequest, reply: FastifyReply): boolean => {
+    const verdict = limiter.take(req.ip);
+    if (verdict.allowed) return false;
+    ctx.log.warn({ ip: req.ip }, "release rate limit exceeded");
+    reply
+      .code(429)
+      .header("retry-after", String(verdict.retryAfterS))
+      .send({ ok: false, class: "infra", check: 0, reason: "too many release requests" });
+    return true;
+  };
+
   app.get<{ Params: { h: string } }>("/release/:h", async (req, reply) => {
+    if (limited(req, reply)) return reply;
     const h = req.params.h.toLowerCase();
     if (!H_PARAM.test(h)) {
       return reply.code(400).send({ ok: false, reason: "h must be 64 lowercase hex characters" });
+    }
+    const stale = registryStale(ctx);
+    if (stale !== null) {
+      ctx.log.error({ h, lag_s: stale }, "refusing to quote: registry watcher is stale");
+      return reply
+        .code(503)
+        .send({ ok: false, h, class: "infra", check: 0, reason: "registry watcher is stale" });
     }
     const answer = await ctx.payment.buildRequirements(h).catch((err) => {
       ctx.log.error({ h, err }, "could not build payment requirements");
@@ -44,6 +98,7 @@ export function registerReleaseRoutes(app: FastifyInstance, ctx: WitnessContext)
   });
 
   app.post<{ Params: { h: string } }>("/release/:h", async (req, reply) => {
+    if (limited(req, reply)) return reply;
     const h = req.params.h.toLowerCase();
     if (!H_PARAM.test(h)) {
       return reply.code(400).send({ ok: false, reason: "h must be 64 lowercase hex characters" });
@@ -63,6 +118,14 @@ export function registerReleaseRoutes(app: FastifyInstance, ctx: WitnessContext)
     // is already on the topic; a second one buys nothing the record does not already say.
     const replayed = await replayRelease(deps, { h, body: parsed.data, C: parsed.data.C });
     if (replayed) return await answerFromRecord(ctx, reply, h, replayed);
+
+    const stalePost = registryStale(ctx);
+    if (stalePost !== null) {
+      ctx.log.error({ h, lag_s: stalePost }, "refusing to release: registry watcher is stale");
+      return reply
+        .code(503)
+        .send({ ok: false, h, class: "infra", check: 0, reason: "registry watcher is stale" });
+    }
 
     const signature = headerValue(req.headers["payment-signature"]);
     if (!signature) {

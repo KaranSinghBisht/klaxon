@@ -513,6 +513,29 @@ jobs:
     expect(result.body).toMatchObject({ ok: false, class: "auth", check: 1 });
   });
 
+  it("refuses while the Sepolia watcher is stale, and takes no money doing it", async () => {
+    // The witness applies policy it learned by following Sepolia, so a stale cursor means the
+    // revocation flag, the policy hash and the generation may all be out of date — a project the
+    // owner revoked minutes ago would still be served. /health already goes red on this, but health
+    // is advice: the deployed reverse proxy does not act on it, so the release path enforces it.
+    // Checked before settlement, because charging for a request the witness already knows it cannot
+    // answer is indefensible.
+    h.registry.lag = 3_600;
+    const result = await h.release();
+
+    expect(result.status).toBe(503);
+    expect(result.body).toMatchObject({ ok: false, class: "infra" });
+    expect(h.payment.settlements.size).toBe(0);
+    expect(revoked()).toBe(false);
+    expect(h.hcs.messages).toHaveLength(0);
+  });
+
+  it("serves normally once the watcher has caught up", async () => {
+    h.registry.lag = 0;
+    const result = await h.release();
+    expect(result.status).toBe(200);
+  });
+
   it("refuses a stranger's payment WITHOUT revoking — the unauthenticated revocation hole", async () => {
     // `payerOf()` computed the debited account and nothing compared it to anything, so any funded
     // Hedera account could buy this project's release: `h` is public, and the memo is the only
