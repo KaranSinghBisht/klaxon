@@ -12,6 +12,26 @@ ledger first.** The witness can't omit it — the runner authored it. The witnes
 needs GitHub's signature and the runner's. Nobody can back-date it — Hedera consensus timestamps it.
 When a supply-chain worm tries, it *pays to be refused*.
 
+```mermaid
+flowchart TB
+    W(["a compromised npm dependency runs in your CI"])
+
+    W -->|"ordinary repo"| S["reads DEPLOYER_PRIVATE_KEY<br/>straight out of the job environment"]
+    S --> X["key exfiltrated — silently, in seconds,<br/>with no record that it ever happened"]
+
+    W -->|"KLAXON repo"| P["must first pay 0.001 hbar on Hedera,<br/>memo = a signed commitment naming the<br/>secret, the environment, the run"]
+    P --> C{"witness verifies<br/>payment · GitHub OIDC · on-chain policy<br/>· workflow shape · generation"}
+    C -->|"a job the policy never authorized"| F["REFUSED — and the payment already<br/>settled: project revoked, phone alarm,<br/>the attempt on a public ledger forever"]
+    C -->|"the authorized job"| G["share B released into<br/>exactly one step"]
+
+    style X fill:#7f1d1d,stroke:#ef4444,color:#fff
+    style F fill:#7f1d1d,stroke:#ef4444,color:#fff
+    style G fill:#14532d,stroke:#22c55e,color:#fff
+```
+
+*Left path is how it works today. Right path is what this repo does — and both have really run:
+see the runs and their on-chain receipts below.*
+
 ## Status — read this first
 
 A hackathon build (ETHOnline 2026). As of **2026-09-13** both halves have been exercised on real
