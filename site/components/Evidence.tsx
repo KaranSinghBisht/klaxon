@@ -20,7 +20,7 @@ function Line({ k, children }: { k: string; children: React.ReactNode }) {
   );
 }
 
-const link = "text-brass underline decoration-brass-line underline-offset-2 hover:brightness-125";
+const link = "text-steel underline decoration-steel-dim/50 underline-offset-2 hover:brightness-125";
 
 export function Evidence() {
   return (

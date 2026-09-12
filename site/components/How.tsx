@@ -45,8 +45,8 @@ export function How() {
           {STEPS.map((s) => (
             <li key={s.n} className="rounded-xl border border-rule bg-panel p-6">
               <div className="flex items-baseline gap-3">
-                <span className="font-mono text-[12px] font-semibold text-brass">{s.n}</span>
-                <span className="gutter border border-brass-line bg-brass-soft px-2 py-0.5 text-brass">
+                <span className="font-mono text-[12px] font-semibold text-steel">{s.n}</span>
+                <span className="gutter border border-rule bg-panel-2 px-2 py-0.5 text-steel">
                   {s.tag}
                 </span>
               </div>

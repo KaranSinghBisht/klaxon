@@ -58,7 +58,7 @@ export function Stack() {
           {STACK.map((s) => (
             <div key={s.who} className="rounded-xl border border-rule bg-panel p-6">
               <p className="text-[19px] font-bold">{s.who}</p>
-              <p className="mt-1 text-[13.5px] font-medium text-brass">{s.what}</p>
+              <p className="mt-1 text-[13.5px] font-medium text-steel">{s.what}</p>
               <p className="mt-3 text-[14px] leading-relaxed text-ink-2">{s.body}</p>
             </div>
           ))}

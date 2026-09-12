@@ -1,34 +1,39 @@
 @import "tailwindcss";
 
-/* KLAXON — an instrument panel, not a marketing site.
-   Near-black ground with warm paper-coloured ink, the way a workshop lamp lands on a spec sheet.
-   Brass is the accent because a klaxon is a brass horn, and it carries every link and control.
-   Signal red is spent on ONE thing and nothing else: a secret leaving without permission, or an
-   attempt being refused. If red appears, something is wrong. That is the whole colour argument. */
+/* KLAXON — machined, not decorated.
+   The ground is gunmetal under a hard shop light; the type is polished steel catching it. There is
+   no brand colour, because a tool does not have one. Signal red is spent on ONE thing and nothing
+   else: a secret leaving without permission, or an attempt being refused. If red appears on this
+   site, something is wrong. That is the whole colour argument. */
 
 :root {
-  --ground: #0a0a0b;
-  --ground-2: #0e0e10;
-  --panel: #141417;
-  --panel-2: #1a1a1e;
-  --rule: #26262b;
-  --rule-soft: #1d1d21;
+  /* Gunmetal. Machined steel under a hard shop light, not a "dark theme".
+     Everything structural is a grey with a cold cast; the only warm thing on the site is the
+     alarm, and the alarm is the product. Red appears when a secret moves without permission or an
+     attempt is refused, and nowhere else at all. */
+  --ground: #050506;
+  --ground-2: #08080a;
+  --panel: #0e0f11;
+  --panel-2: #14161a;
+  --rule: #1f2227;
+  --rule-soft: #16181c;
 
-  --ink: #ece7de;
-  --ink-2: #9c968b;
-  --ink-3: #6b6660;
+  --ink: #e8eaed;
+  --ink-2: #8f959e;
+  --ink-3: #5c626b;
 
-  --brass: #d9a441;
-  --brass-soft: rgba(217, 164, 65, 0.12);
-  --brass-line: rgba(217, 164, 65, 0.3);
+  /* Polished steel — used for the chrome type fill and hairlines, never as a "brand colour". */
+  --steel: #c3c9d2;
+  --steel-dim: #6f7681;
 
-  --signal: #e5372a;
-  --signal-soft: rgba(229, 55, 42, 0.1);
-  --signal-line: rgba(229, 55, 42, 0.32);
+  --signal: #ff3b30;
+  --signal-soft: rgba(255, 59, 48, 0.09);
+  --signal-line: rgba(255, 59, 48, 0.34);
+  --signal-glow: rgba(255, 59, 48, 0.55);
 
-  --good: #4fb477;
-  --good-soft: rgba(79, 180, 119, 0.1);
-  --good-line: rgba(79, 180, 119, 0.28);
+  --good: #34d07f;
+  --good-soft: rgba(52, 208, 127, 0.09);
+  --good-line: rgba(52, 208, 127, 0.28);
 }
 
 @theme inline {
@@ -41,9 +46,8 @@
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
-  --color-brass: var(--brass);
-  --color-brass-soft: var(--brass-soft);
-  --color-brass-line: var(--brass-line);
+  --color-steel: var(--steel);
+  --color-steel-dim: var(--steel-dim);
   --color-signal: var(--signal);
   --color-signal-soft: var(--signal-soft);
   --color-signal-line: var(--signal-line);
@@ -126,5 +130,66 @@ body {
   }
   html {
     scroll-behavior: auto;
+  }
+}
+
+/* ---- the hero type stack --------------------------------------------------------------- */
+
+/* Filled line: polished steel, lit from above. A gradient across the glyphs reads as a machined
+   surface catching a shop light rather than as a "gradient text" effect. */
+.chrome {
+  background: linear-gradient(
+    177deg,
+    #ffffff 2%,
+    #cfd5dd 22%,
+    #767d88 47%,
+    #e9edf2 58%,
+    #9aa1ab 74%,
+    #4e545d 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Ghost line: the same words, outlined only, sitting behind and offset. Two states of the same
+   sentence — what you took, and what you got. */
+.ghost {
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(195, 201, 210, 0.22);
+}
+
+/* Hairline curves drifting behind the type, the way a schematic does. */
+.hairline {
+  stroke: rgba(195, 201, 210, 0.13);
+  fill: none;
+  stroke-width: 1;
+}
+
+/* The alarm. Used once. */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.35);
+  }
+}
+.alarm {
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+/* Assets composite over pure black with `screen`, so a render with a black background drops its
+   background automatically and only the metal survives. */
+.plate {
+  mix-blend-mode: screen;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alarm {
+    animation: none;
   }
 }

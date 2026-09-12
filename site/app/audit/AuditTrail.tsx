@@ -95,7 +95,7 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
   );
 }
 
-const link = "text-brass underline decoration-brass-line underline-offset-2 hover:brightness-125";
+const link = "text-steel underline decoration-steel-dim/50 underline-offset-2 hover:brightness-125";
 
 function Card({ entry }: { entry: Entry }) {
   const b = entry.body;
@@ -125,13 +125,13 @@ function Card({ entry }: { entry: Entry }) {
       ? "border-l-good"
       : kind === "refused"
         ? "border-l-signal"
-        : "border-l-brass";
+        : "border-l-steel-dim";
   const badge =
     kind === "released"
       ? "border-good-line bg-good-soft text-good"
       : kind === "refused"
         ? "border-signal-line bg-signal-soft text-signal"
-        : "border-brass-line bg-brass-soft text-brass";
+        : "border-rule bg-panel-2 text-steel";
 
   const when = new Date(b.ts ?? Number(entry.at) * 1000)
     .toISOString()
