@@ -129,6 +129,34 @@ public mirror node and flags any with no matching message as **`WITNESS WITHHELD
 cannot omit a Hedera transfer it did not author. Detail, including exactly what each side binds on
 and why neither binds on `payer_account_id`: [`docs/PAYMENT-FLOW.md`](docs/PAYMENT-FLOW.md).
 
+### What a release costs the witness
+
+Measured on testnet, not estimated — read it back off the mirror node for account `0.0.10455530`:
+
+| | tinybar |
+|---|---|
+| Revenue, one release | 100,000 |
+| 3 × `CONSENSUSSUBMITMESSAGE` (chunked audit record) | 3,072,929 |
+| 1 × transaction record query | 133,908 |
+| **Net** | **−3,106,837, about a 32× loss** |
+
+This is deliberate and it is worth being precise about why. The audit record carries the runner's
+**entire OIDC token**, so a verifier can check the claims against GitHub's keys without asking
+anyone's permission. That does not fit in one 1 KB HCS message, so it chunks into three. Publishing
+a hash instead would cost a third as much and make the record unfalsifiable-but-uncheckable, which
+defeats the point.
+
+So the 0.001 ℏ is **not a fee that recovers cost, and was never priced to.** It is the commitment
+device: the smallest real, attributable, publicly-ordered act that a runner can be made to perform
+before a secret moves. Priced for cost recovery it would be about 0.035 ℏ, still well under a US
+cent, and that is what a production deployment should charge.
+
+The honest consequence: a refused attempt costs the witness roughly 32× what the attacker paid, and
+there is **no HTTP rate limiter in the witness today**. A party who can mint a valid GitHub OIDC
+token for a registered repository can therefore drain a witness's balance at 32:1. Check 7's release
+budget bounds successful releases per project, not refusals. Rate limiting and a refusal budget are
+the fix, and neither is implemented — see [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+
 ## Quickstart
 
 Requires Node ≥ 22 and pnpm 11.
