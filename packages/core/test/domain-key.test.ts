@@ -55,8 +55,14 @@ describe("wallet-cli domain key compatibility", () => {
   });
 
   it("golden vector is stable (regression lock)", () => {
+    // A real pin, not a tautology. Derived from an all-zero wsek and a fixed key name, so it
+    // carries no key material, and any drift in the salt (`wallet-cli-domain-v1`), the info
+    // (the key name) or the KDF changes it. The interop test proves this derivation is the one
+    // real `wallet-cli ring encrypt`/`decrypt` agrees with, in both directions.
     const k = deriveDomainKey("00".repeat(32), "klaxon/test");
-    expect(k.toString("hex")).toBe(k.toString("hex")); // pinned below once Gate A captures a real wallet-cli blob
+    expect(k.toString("hex")).toBe(
+      "b532a4dbaf6fdc1ea056106805018800efdd111be13454909da1938ecf8b7fff",
+    );
     expect(k).toHaveLength(32);
   });
 

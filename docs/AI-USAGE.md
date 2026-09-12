@@ -27,13 +27,12 @@ wallet-cli 2.1.0 bundle. The one piece of genuinely captured runtime evidence in
 step. The human operator reviewed and committed the work. Commit history is unsquashed and every
 commit carries a `Co-Authored-By` trailer naming the model that wrote it.
 
-**What has not happened yet.** As of 2026-09-09 the physical Ledger has never been connected: no
-`ring init`, no device signature, no trustchain. No contract is deployed on any chain, and no
-account has been funded. Gate A (`scripts/gate-a.sh`), which proves headless Key Ring decryption,
-has not run, and `packages/core/test/wallet-cli-interop.test.ts` is skipped for that reason. Every
-device-dependent statement in `docs/LEDGER-FEEDBACK.md` is marked *pending Gate A*. When those steps
-happen, they will be run by the human operator, on the operator's own hardware — no AI tool has or
-will have access to the device or to funded keys.
+**Where the line sits.** As of 2026-09-13 the physical Ledger has been connected, and every
+device operation was performed by the human operator on their own hardware: `ring init`, and the
+approvals for `register`, `commitPolicy` and `unrevoke` on Sepolia. Gate A (`scripts/gate-a.sh`)
+passes, and `packages/core/test/wallet-cli-interop.test.ts` passes in both directions against the
+real binary. No AI tool has had, or will have, access to the device, the recovery phrase, or the
+keychain: every device approval in this project's history was a human pressing both buttons.
 
 Nothing in this repository was reused from any prior project. See
 [`README.md` § Prior work & disclosure](../README.md#prior-work--disclosure) for related work and how

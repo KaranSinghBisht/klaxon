@@ -4,11 +4,12 @@ KLAXON is built on the Ledger Key Ring Protocol through `@ledgerhq/wallet-cli` 2
 `@ledgerhq/ledger-key-ring-protocol` 0.15.2 (Node 22 on the laptop, Node 24 in CI), September 2026.
 Below is one bug in shipped code, then the developer-experience notes in the order we hit them.
 
-> ### ⚠️ BEFORE SUBMISSION
+> ### Status: device-verified
 >
-> This document currently ships **zero screenshots** and several claims marked *pending Gate A*.
-> Both are listed explicitly below. Do not present it as a report of observed device behaviour
-> until those markers are cleared.
+> Every device-dependent claim below was observed with a physical **Ledger Nano S Plus** on
+> 2026-09-12. `ring init` enrolled a trustchain, the device signed four registry transactions on
+> Sepolia, and `scripts/gate-a.sh` passes both halves. The one thing this document still owes is
+> screenshots — `docs/img/` is empty.
 
 ## How to read this document
 
@@ -17,17 +18,18 @@ matters more than a tidy one:
 
 - **Status: verified** — checked against shipped code in `node_modules`, or against the real
   `wallet-cli` 2.1.0 binary on this machine. No device required to reproduce.
-- **Status: pending Gate A** — the claim follows from reading the code, but the physical Ledger has
-  **not** been connected yet. `scripts/gate-a.sh` is the script that will settle it: `ring init` on
-  the device, `klaxon export-member`, then headless `restoreTrustchain` + `ringDecrypt` in a clean
-  `node:24-bookworm-slim` container, cross-checked against real `wallet-cli ring decrypt`. Nothing
-  in this document should be read as a report of device behaviour we have observed.
+- **Status: device-verified** — observed on 2026-09-12 with a Nano S Plus attached, through
+  `scripts/gate-a.sh`: `ring init` on the device, `klaxon export-member`, then headless
+  `restoreTrustchain` + `ringDecrypt` in a clean `node:24-bookworm-slim` container, cross-checked
+  against real `wallet-cli ring decrypt`.
 
-**Nothing here has been exercised against a physical Ledger.** No `ring init` has run, no
-transaction has been signed, no trustchain exists. Everything marked *verified* was established by
-reading Ledger's published code and by running the parts of `wallet-cli` that do not need a device
-(`--help`, `--version`). Screenshots are listed in "Screenshots owed" at the end; `docs/img/` is
-currently empty.
+**This has been exercised against a physical Ledger.** `ring init` enrolled a Nano S Plus, the
+device signed `register`, two `commitPolicy` calls and an `unrevoke` on Sepolia, and the resulting
+trustchain restores headlessly on a host with no device attached.
+`packages/core/test/wallet-cli-interop.test.ts` — the M10 acceptance criterion — passes in both
+directions against the real binary. Anything still established only by reading Ledger's published
+code says so where it appears. Screenshots are listed in "Screenshots owed" at the end;
+`docs/img/` is still empty.
 
 ---
 
@@ -142,14 +144,19 @@ do not, and why `removeMember` is the asymmetric one.
   set a script needs. **Status: verified** from `wallet-cli send --help` on 2.1.0. We have not yet
   used them against a device, so we cannot say what the rehearsal loop feels like — that is
   Gate A/M3.
-- The `--output json` envelope is `{"ok": true, "data": {...}}`. **Status: verified** for
-  `--version` and `--help`. The payload shape of a real `send` response is still unknown; our parser
-  accepts both candidate envelopes and normalises them
-  (`packages/cli/src/wallet-cli/exec.ts`, decision D15), and that stays until we capture one real
-  response with the device attached.
+- `--output json` is **not one envelope**. `--version` and `--help` answer
+  `{"ok": true, "data": {...}}`, but a device-signed `send` **streams NDJSON**: one or more
+  `{"type": "device-state", ...}` progress events while the device waits for approval, then a flat
+  `{"status": "success", ..., "tx_hash": "0x…"}` result. **Status: device-verified** (captured
+  2026-09-12). A single `JSON.parse()` of that stdout throws, which is the obvious thing for a
+  caller to do and cost us a debugging session mid-demo. The result key is also snake_case
+  `tx_hash` where the surrounding surface is camelCase, so a parser looking for `txHash` silently
+  reports no transaction for one that in fact landed on chain. **Ask:** document the streaming
+  shape, or gate it behind `--progress` so `--output json` stays a single object.
 - `ring init` is a single command from a blank device to a trustchain, with `--name` and
-  `--output json`. **Status: pending Gate A** — this is what the help text promises; we have not run
-  it, and we have not seen the device-side Ledger Sync flow at all.
+  `--output json`. **Status: device-verified** — it does exactly that. One approval on the device,
+  and the member key lands in the macOS keychain under `service=ledger-wallet-cli`. Choosing
+  "Always Allow" at the keychain prompt is what makes every later command non-interactive.
 
 ## Friction
 
@@ -232,10 +239,12 @@ We extracted the CLI bundle to learn it:
 key; AES-256-GCM produces `iv(12) ‖ ciphertext ‖ tag(16)`. Our implementation is checked
 byte-for-byte against WebCrypto in `packages/core/test/domain-key.test.ts`.
 
-The claim we still owe is that **real `wallet-cli ring decrypt` opens our blobs, and our
-`ringDecrypt` opens real `ring encrypt` blobs**. That test exists —
-`packages/core/test/wallet-cli-interop.test.ts` — and it is `describe.skipIf(!enabled)`, currently
-skipped, because it needs a provisioned ring. It is the M10 acceptance criterion and it has not run.
+That claim is settled: **real `wallet-cli ring decrypt` opens our blobs, and our `ringDecrypt`
+opens real `ring encrypt` blobs**. `packages/core/test/wallet-cli-interop.test.ts` drives the real
+binary in both directions and passes against a provisioned ring
+(`KLAXON_WALLET_CLI_INTEROP=1 KLAXON_TEST_WSEK=… pnpm vitest run`). This is the M10 acceptance
+criterion, and it is what makes reading the format out of a bundle defensible at all: the CLI stays
+the specification, and our implementation is contract-tested against it rather than trusted.
 
 **Ask:** write the format down. It is a good primitive and third parties will build on it, which is
 exactly what we did — from a disassembled bundle, which is not a supportable position for either of
