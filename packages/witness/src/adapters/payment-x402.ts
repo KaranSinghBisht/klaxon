@@ -70,7 +70,17 @@ export class X402PaymentAdapter implements PaymentPort {
       new HTTPFacilitatorClient({ url: config.X402_FACILITATOR, timeoutMs: this.timeoutMs }),
     ).register(hederaNetworkGlob(config.X402_NETWORK), new ExactHederaScheme());
     this.mirror =
-      mirror ?? new MirrorNodeClient({ baseUrl: config.MIRROR_NODE, timeoutMs: this.timeoutMs });
+      mirror ??
+      new MirrorNodeClient({
+        baseUrl: config.MIRROR_NODE,
+        timeoutMs: this.timeoutMs,
+        // Check 1 reads the transaction back the instant the facilitator reports settlement, so it
+        // races Hedera's mirror ingestion and the default 3 attempts 400ms apart lose — an ~800ms
+        // budget against a lag of seconds. Losing means refusing a runner who has already paid, so
+        // this read gets ~8s. `health()` takes no retries and is unaffected.
+        attempts: 8,
+        delayMs: 1200,
+      });
   }
 
   /**
@@ -171,7 +181,16 @@ export class X402PaymentAdapter implements PaymentPort {
     }
   }
 
-  /** Check 1's evidence: the settled transaction, read back from public data. */
+  /**
+   * Check 1's evidence: the settled transaction, read back from public data.
+   *
+   * The mirror node trails consensus by a second or two, and this runs immediately after the
+   * facilitator reports settlement. A single read therefore loses a race it will usually win, and
+   * loses it in the worst direction: the runner has already paid, so failing closed costs them the
+   * money and returns nothing. Poll for that indexing lag specifically. Every other outcome —
+   * wrong memo, wrong payee, failed transaction — is decided on the first response and never
+   * retried, because those answers do not change.
+   */
   async verifySettledOnChain(payTx: string, expect: OnChainExpectation): Promise<OnChainOutcome> {
     let transactions: Awaited<ReturnType<MirrorNodeClient["getTransaction"]>>;
     try {

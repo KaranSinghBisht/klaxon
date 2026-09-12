@@ -282,6 +282,55 @@ describe("x402 on-chain verification", () => {
     X402_FACILITATOR: "https://facilitator.test",
   });
 
+  it("polls through mirror-node indexing lag instead of failing a payment already made", async () => {
+    // The facilitator reports settlement before the mirror node has indexed it, and this read
+    // happens immediately afterwards. A single attempt loses that race, and loses it against a
+    // runner who has already been debited — so the lag, and only the lag, is retried. Observed
+    // live on 2026-09-12: a legitimate release refused with "payment is not visible on the mirror
+    // node yet" seconds after the transfer reached consensus.
+    let reads = 0;
+    const mirror = new MirrorNodeClient({
+      baseUrl: "https://mirror.test",
+      sleep: async () => {},
+      fetchImpl: async () => {
+        reads += 1;
+        if (reads <= 2) return new Response("", { status: 404 });
+        return new Response(JSON.stringify({ transactions: [tx()] }), { status: 200 });
+      },
+    });
+    const adapter = new X402PaymentAdapter(config, silentLogger, mirror);
+    const outcome = await adapter.verifySettledOnChain("0.0.7162784@1.2", {
+      memo: "a".repeat(64),
+      toAccount: "0.0.4820",
+      minAmount: "100000",
+    });
+
+    expect(reads).toBe(3);
+    expect(outcome).toMatchObject({ ok: true, payerAccount: "0.0.10405046" });
+  }, 20_000);
+
+  it("refuses a wrong memo on the first read, because that answer will not change", async () => {
+    // Only absence is retried. A transaction that is present and wrong is a verdict, and polling it
+    // six times would delay the refusal without ever altering it.
+    let reads = 0;
+    const mirror = new MirrorNodeClient({
+      baseUrl: "https://mirror.test",
+      fetchImpl: async () => {
+        reads += 1;
+        return new Response(JSON.stringify({ transactions: [tx()] }), { status: 200 });
+      },
+    });
+    const adapter = new X402PaymentAdapter(config, silentLogger, mirror);
+    const outcome = await adapter.verifySettledOnChain("0.0.7162784@1.2", {
+      memo: "b".repeat(64),
+      toAccount: "0.0.4820",
+      minAmount: "100000",
+    });
+
+    expect(reads).toBe(1);
+    expect(outcome).toMatchObject({ ok: false, infra: false });
+  });
+
   it("names the runner as payer, not the facilitator that paid the bigger network fee", async () => {
     // Gate B's real shape: Blocky402 (the fee payer) is debited MORE than the runner, so reading
     // the "most negative" debit would name the facilitator the payer — and check 1 would then
