@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+/* KLAXON — an instrument panel, not a marketing site.
+   Near-black ground with warm paper-coloured ink, the way a workshop lamp lands on a spec sheet.
+   Brass is the accent because a klaxon is a brass horn, and it carries every link and control.
+   Signal red is spent on ONE thing and nothing else: a secret leaving without permission, or an
+   attempt being refused. If red appears, something is wrong. That is the whole colour argument. */
+
+:root {
+  --ground: #0a0a0b;
+  --ground-2: #0e0e10;
+  --panel: #141417;
+  --panel-2: #1a1a1e;
+  --rule: #26262b;
+  --rule-soft: #1d1d21;
+
+  --ink: #ece7de;
+  --ink-2: #9c968b;
+  --ink-3: #6b6660;
+
+  --brass: #d9a441;
+  --brass-soft: rgba(217, 164, 65, 0.12);
+  --brass-line: rgba(217, 164, 65, 0.3);
+
+  --signal: #e5372a;
+  --signal-soft: rgba(229, 55, 42, 0.1);
+  --signal-line: rgba(229, 55, 42, 0.32);
+
+  --good: #4fb477;
+  --good-soft: rgba(79, 180, 119, 0.1);
+  --good-line: rgba(79, 180, 119, 0.28);
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-ground-2: var(--ground-2);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-rule: var(--rule);
+  --color-rule-soft: var(--rule-soft);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-brass: var(--brass);
+  --color-brass-soft: var(--brass-soft);
+  --color-brass-line: var(--brass-line);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-signal-line: var(--signal-line);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-good-line: var(--good-line);
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+body {
+  background: var(--ground);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Display type is set tight and dense — signage, not a blog post. */
+.display {
+  letter-spacing: -0.03em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+.gutter {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The floating artefacts around the hero. Every one carries real data from a real run, so they
+   read as instruments hanging in the air rather than decoration. */
+.chip {
+  background: linear-gradient(180deg, rgba(26, 26, 30, 0.96), rgba(16, 16, 19, 0.96));
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow:
+    0 20px 50px -24px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(6px);
+  transform: rotate(var(--tilt, 0deg));
+}
+.drift {
+  animation: drift 11s ease-in-out infinite;
+}
+@keyframes drift {
+  0%,
+  100% {
+    transform: rotate(var(--tilt, 0deg)) translateY(0);
+  }
+  50% {
+    transform: rotate(var(--tilt, 0deg)) translateY(-9px);
+  }
+}
+
+/* A faint scanline wash, low enough that it reads as texture rather than a gimmick. */
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.014) 0px,
+    rgba(255, 255, 255, 0.014) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drift {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}

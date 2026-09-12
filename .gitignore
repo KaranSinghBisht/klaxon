@@ -19,3 +19,9 @@ witness-master*
 # OMC session state
 .omc/
 deploy/aws/witness.env
+
+# the landing site builds independently of the pnpm workspace
+site/node_modules/
+site/.next/
+site/.vercel/
+site/next-env.d.ts
