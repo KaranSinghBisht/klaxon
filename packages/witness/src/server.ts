@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import type { WitnessContext } from "./context.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerAuditRoute } from "./routes/audit.js";
 import { registerHealthRoute } from "./routes/health.js";
 import { registerManifestRoute } from "./routes/manifest.js";
 import { registerReleaseRoutes } from "./routes/release.js";
@@ -41,5 +42,6 @@ export function buildServer(ctx: WitnessContext): FastifyInstance {
   registerManifestRoute(app, ctx);
   registerReleaseRoutes(app, ctx);
   registerAdminRoutes(app, ctx);
+  registerAuditRoute(app);
   return app;
 }

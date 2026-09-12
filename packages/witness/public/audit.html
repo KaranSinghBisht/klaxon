@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KLAXON Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
+<style>
+  :root{
+    --ground:#0d0f11; --panel:#14171a; --panel-2:#1a1e22; --line:#262c31;
+    --ink:#e7ecef; --ink-dim:#9aa6ae; --ink-faint:#68757e;
+    --ok:#3ddc84; --ok-bg:rgba(61,220,132,.09); --ok-line:rgba(61,220,132,.32);
+    --bad:#ff5a52; --bad-bg:rgba(255,90,82,.09); --bad-line:rgba(255,90,82,.32);
+    --warn:#ffb648; --warn-bg:rgba(255,182,72,.09); --warn-line:rgba(255,182,72,.3);
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+       font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:1060px;margin:0 auto;padding:40px 22px 80px}
+
+  header{border-bottom:1px solid var(--line);padding-bottom:26px;margin-bottom:30px}
+  .brand{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  h1{font-size:30px;letter-spacing:.14em;margin:0;font-weight:700}
+  .tag{color:var(--ink-dim);font-style:italic;font-size:15px}
+  .lede{margin:16px 0 0;max-width:68ch;color:var(--ink-dim)}
+  .lede strong{color:var(--ink);font-weight:600}
+
+  .facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .fact{font-family:var(--mono);font-size:12px;background:var(--panel);border:1px solid var(--line);
+        border-radius:6px;padding:6px 10px;color:var(--ink-dim)}
+  .fact b{color:var(--ink);font-weight:500}
+
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:26px 0 18px}
+  .count{font-family:var(--mono);font-size:12px;padding:5px 10px;border-radius:20px;border:1px solid var(--line);color:var(--ink-dim)}
+  .count.ok{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
+  .count.bad{color:var(--bad);border-color:var(--bad-line);background:var(--bad-bg)}
+  button{font:inherit;font-size:13px;background:var(--panel-2);color:var(--ink);
+         border:1px solid var(--line);border-radius:6px;padding:6px 13px;cursor:pointer}
+  button:hover{border-color:var(--ink-faint)}
+  button:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+
+  .ev{border:1px solid var(--line);border-radius:10px;background:var(--panel);
+      margin-bottom:14px;overflow:hidden}
+  .ev.released{border-left:3px solid var(--ok)}
+  .ev.refused{border-left:3px solid var(--bad)}
+  .ev.unrevoke{border-left:3px solid var(--warn)}
+  .ev-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 16px}
+  .kind{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+        padding:3px 9px;border-radius:4px;font-weight:600}
+  .released .kind{color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-line)}
+  .refused .kind{color:var(--bad);background:var(--bad-bg);border:1px solid var(--bad-line)}
+  .unrevoke .kind{color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line)}
+  .title{font-weight:600}
+  .when{color:var(--ink-faint);font-family:var(--mono);font-size:12px;margin-left:auto}
+  .why{padding:0 16px 12px;color:var(--bad);font-size:14px}
+
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px}
+  .rows{border-top:1px solid var(--line);overflow-x:auto}
+  td{padding:7px 16px;vertical-align:top;border-bottom:1px solid rgba(38,44,49,.5)}
+  tr:last-child td{border-bottom:0}
+  td.k{color:var(--ink-faint);white-space:nowrap;width:190px}
+  td.v{color:var(--ink);word-break:break-all}
+  .proof{display:inline-flex;align-items:center;gap:7px;font-weight:500}
+  .proof.ok{color:var(--ok)} .proof.bad{color:var(--bad)} .proof.pending{color:var(--ink-faint)}
+
+  .note{border:1px solid var(--line);border-left:3px solid var(--ink-faint);border-radius:8px;
+        background:var(--panel);padding:14px 16px;margin:26px 0;color:var(--ink-dim);font-size:14px}
+  .note b{color:var(--ink)}
+  footer{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);
+         color:var(--ink-faint);font-size:13px}
+  .skel{color:var(--ink-faint);font-family:var(--mono);font-size:13px;padding:30px 0}
+  @media (prefers-reduced-motion:no-preference){
+    .ev{animation:in .25s ease both}
+    @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>KLAXON</h1><span class="tag">Stolen, but never quietly.</span>
+    </div>
+    <p class="lede">
+      Every release of a protected CI secret — and every refused attempt — is published to a Hedera
+      Consensus Service topic before the secret moves. <strong>This page reads that topic directly
+      from the public mirror node, in your browser.</strong> It talks to no KLAXON server. For each
+      entry it also fetches the payment and checks, here, that the transaction memo really is the
+      commitment hash the runner signed.
+    </p>
+    <div class="facts">
+      <span class="fact">topic <b>0.0.10503843</b></span>
+      <span class="fact">witness <b>0.0.10455530</b></span>
+      <span class="fact">registry <b>0xd93f…6885</b></span>
+      <span class="fact">network <b>hedera:testnet</b></span>
+    </div>
+  </header>
+
+  <div class="bar">
+    <span class="count" id="c-total">loading…</span>
+    <span class="count ok" id="c-ok" hidden></span>
+    <span class="count bad" id="c-bad" hidden></span>
+    <button id="refresh">Refresh</button>
+  </div>
+
+  <div id="list"><div class="skel">Reading the consensus topic…</div></div>
+
+  <div class="note">
+    <b>What a green check means.</b> The runner signs a commitment naming the secret, the
+    environment and the run, hashes it, and pays the witness with that hash as the transaction memo.
+    The witness cannot forge the record, because it needs GitHub's signature and the runner's; it
+    cannot suppress it, because the payment is on a ledger it does not control; and it cannot
+    back-date it, because Hedera orders it. The check above is that comparison, recomputed from
+    public data every time this page loads.
+  </div>
+
+  <footer>
+    Source: <a href="https://github.com/KaranSinghBisht/klaxon">github.com/KaranSinghBisht/klaxon</a>
+    · demo: <a href="https://github.com/KaranSinghBisht/klaxon-demo">klaxon-demo</a>
+    · built for ETHOnline 2026
+  </footer>
+</div>
+
+<script>
+const MIRROR = "https://testnet.mirrornode.hedera.com";
+const TOPIC  = "0.0.10503843";
+const el = (id) => document.getElementById(id);
+const short = (s, n = 10) => (s && s.length > n * 2 ? `${s.slice(0, n)}…${s.slice(-6)}` : s || "");
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/** HCS caps a message at ~1KB, so a record carrying a whole OIDC token arrives in chunks. */
+function reassemble(messages) {
+  const groups = new Map();
+  for (const m of messages) {
+    const ci = m.chunk_info || {};
+    const key = ci.initial_transaction_id
+      ? `${ci.initial_transaction_id.account_id}@${ci.initial_transaction_id.transaction_valid_start}`
+      : `solo-${m.sequence_number}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ n: ci.number || 1, m });
+  }
+  const out = [];
+  for (const parts of groups.values()) {
+    parts.sort((a, b) => a.n - b.n);
+    const text = parts.map((p) => atob(p.m.message)).join("");
+    const last = parts[parts.length - 1].m;
+    try {
+      out.push({
+        body: JSON.parse(text),
+        seqs: parts.map((p) => p.m.sequence_number),
+        at: last.consensus_timestamp,
+      });
+    } catch {
+      out.push({ body: null, seqs: parts.map((p) => p.m.sequence_number), at: last.consensus_timestamp });
+    }
+  }
+  return out.sort((a, b) => Number(b.at) - Number(a.at));
+}
+
+const dashed = (txId) => {
+  const m = /^(\d+\.\d+\.\d+)@(\d+)\.(\d+)$/.exec(txId || "");
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+};
+
+async function checkMemo(payTx, h) {
+  const id = dashed(payTx);
+  if (!id) return { state: "unknown", detail: "no payment id in the record" };
+  try {
+    const res = await fetch(`${MIRROR}/api/v1/transactions/${id}`);
+    if (!res.ok) return { state: "unknown", detail: `mirror node answered ${res.status}` };
+    const tx = (await res.json()).transactions?.[0];
+    if (!tx) return { state: "unknown", detail: "not indexed" };
+    const memo = tx.memo_base64 ? atob(tx.memo_base64) : "";
+    const credited = (tx.transfers || []).find((t) => t.account === "0.0.10455530" && t.amount > 0);
+    return memo === h
+      ? { state: "ok", detail: `memo equals the commitment · witness credited ${credited ? credited.amount : "?"} tinybar` }
+      : { state: "bad", detail: `memo is ${short(memo) || "empty"}, commitment is ${short(h)}` };
+  } catch (e) {
+    return { state: "unknown", detail: "could not reach the mirror node" };
+  }
+}
+
+function row(k, v) { return `<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`; }
+const hashscanTx = (id) => `https://hashscan.io/testnet/transaction/${encodeURIComponent(id)}`;
+
+function render(entry) {
+  const b = entry.body;
+  if (!b) return `<div class="ev"><div class="ev-head"><span class="kind">unreadable</span>
+    <span class="title">sequence ${entry.seqs.join(", ")}</span></div></div>`;
+  const C = b.C || {};
+  const kind = b.type;
+  const when = new Date(b.ts || Number(entry.at) * 1000).toISOString().replace("T", " ").slice(0, 19);
+  const title = kind === "released" ? `${C.secret || "secret"} released to ${C.environment || "—"}`
+              : kind === "refused"  ? `${C.secret || "secret"} refused`
+              : `project recovered at epoch ${b.epoch}`;
+
+  let rows = "";
+  if (kind === "unrevoke") {
+    rows += row("sepolia tx", `<a href="https://sepolia.etherscan.io/tx/${esc(b.sepolia_tx)}">${short(b.sepolia_tx, 14)}</a>`);
+    rows += row("epoch", esc(b.epoch));
+  } else {
+    if (C.run_id) rows += row("github run", `<a href="https://github.com/KaranSinghBisht/klaxon-demo/actions/runs/${esc(C.run_id)}">${esc(C.run_id)}</a> · attempt ${esc(C.run_attempt || "1")}`);
+    rows += row("environment", esc(C.environment || "(none declared)"));
+    rows += row("generation", esc(C.gen));
+    rows += row("commitment", `<span title="${esc(b.h)}">${short(b.h, 16)}</span>`);
+    if (b.pay_tx) rows += row("payment", `<a href="${hashscanTx(b.pay_tx)}">${esc(b.pay_tx)}</a>`);
+    rows += row("memo binding", `<span class="proof pending" data-h="${esc(b.h)}" data-tx="${esc(b.pay_tx || "")}">checking…</span>`);
+    rows += row("hcs sequence", entry.seqs.join(", "));
+  }
+
+  return `<div class="ev ${esc(kind)}">
+    <div class="ev-head">
+      <span class="kind">${esc(kind)}</span>
+      <span class="title">${esc(title)}</span>
+      <span class="when">${esc(when)}</span>
+    </div>
+    ${kind === "refused" ? `<div class="why">Refused at check ${esc(b.check)} (${esc(b.class)}) — ${esc(b.reason)}</div>` : ""}
+    <div class="rows"><table>${rows}</table></div>
+  </div>`;
+}
+
+async function load() {
+  const list = el("list");
+  list.innerHTML = `<div class="skel">Reading the consensus topic…</div>`;
+  let messages = [];
+  try {
+    const res = await fetch(`${MIRROR}/api/v1/topics/${TOPIC}/messages?limit=100&order=asc`);
+    messages = (await res.json()).messages || [];
+  } catch {
+    list.innerHTML = `<div class="skel">Could not reach the Hedera mirror node from this browser.</div>`;
+    return;
+  }
+  const entries = reassemble(messages);
+  const released = entries.filter((e) => e.body?.type === "released").length;
+  const refused = entries.filter((e) => e.body?.type === "refused").length;
+
+  el("c-total").textContent = `${entries.length} records on topic ${TOPIC}`;
+  const ok = el("c-ok"), bad = el("c-bad");
+  ok.textContent = `${released} released`; ok.hidden = released === 0;
+  bad.textContent = `${refused} refused`; bad.hidden = refused === 0;
+
+  list.innerHTML = entries.map(render).join("");
+
+  for (const node of list.querySelectorAll(".proof[data-h]")) {
+    const { h, tx } = node.dataset;
+    const r = await checkMemo(tx, h);
+    node.className = `proof ${r.state === "ok" ? "ok" : r.state === "bad" ? "bad" : "pending"}`;
+    node.textContent = `${r.state === "ok" ? "✓" : r.state === "bad" ? "✗" : "•"} ${r.detail}`;
+  }
+}
+
+el("refresh").addEventListener("click", load);
+load();
+</script>
+</body>
+</html>

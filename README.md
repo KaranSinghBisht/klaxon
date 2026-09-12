@@ -221,6 +221,12 @@ Per-repo checklist, including what the split job pattern does and does not buy y
 
 Nothing here asks you to trust the witness, and the fastest checks need no clone at all.
 
+**Look at the audit trail in a browser.** [`44-198-37-65.sslip.io/audit`](https://44-198-37-65.sslip.io/audit)
+renders every release and every refusal, and for each one fetches the payment and re-checks, in your
+browser, that the transaction memo really is the commitment hash in the record. It reads the Hedera
+mirror node directly and calls no KLAXON service — if this witness went down, or started lying, that
+page would keep working and would say so.
+
 **The service is live.** It answers an x402 challenge for any commitment you name:
 
 ```bash
