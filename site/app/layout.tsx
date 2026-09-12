@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
-import { Archivo, IBM_Plex_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Hanken_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-/* Archivo is a signage grotesk — it sets tight and dense, which is what a warning label wants.
-   Plex Mono carries every hash, account id and transaction, because those are the parts a reader
-   is meant to check rather than read. */
-const archivo = Archivo({
+/* Bricolage carries the display: it has actual drawing in it, so a headline reads as lettering
+   rather than as a system font scaled up. Hanken sets the body at weight 500, which holds up on a
+   near-black ground where a 400 would go thin and grey. Plex Mono carries every hash, account id
+   and transaction, because those are the parts a reader is meant to check rather than read. */
+const display = Bricolage_Grotesque({
   subsets: ["latin"],
-  variable: "--font-archivo",
-  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-display",
+  weight: ["600", "700", "800"],
+  display: "swap",
+});
+
+const body = Hanken_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-hanken",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -33,7 +41,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${archivo.variable} ${plexMono.variable}`}>
+    <html lang="en" className={`${display.variable} ${body.variable} ${plexMono.variable}`}>
       <body className="font-sans antialiased">{children}</body>
     </html>
   );

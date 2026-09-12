@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { CHAIN, REFUSED, RELEASED, STOLEN, short } from "@/lib/facts";
+import { Veil } from "./Veil";
 
 /** Use a render if one has been dropped into public/. The page is composed to work without it. */
 function asset(...names: string[]): string | null {
@@ -71,7 +72,9 @@ export function Hero() {
   const ribbon = asset("ribbon.png", "ribbon.webp", "ribbon.jpg");
 
   return (
-    <section className="relative overflow-hidden border-b border-rule bg-ground">
+    <section className="veil relative overflow-hidden border-b border-rule">
+      <div className="veil-lines" aria-hidden />
+      <Veil />
       <Hairlines />
       {ribbon ? (
         <img
@@ -80,13 +83,7 @@ export function Hero() {
           aria-hidden
           className="plate pointer-events-none absolute top-[-6%] left-1/2 w-[1500px] max-w-none -translate-x-1/2 opacity-90 select-none"
         />
-      ) : (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute top-[-180px] left-1/2 h-[620px] w-[1100px] -translate-x-1/2 rounded-full opacity-[0.07] blur-[120px]"
-          style={{ background: "radial-gradient(circle, #c3c9d2 0%, transparent 68%)" }}
-        />
-      )}
+      ) : null}
       <Artefacts />
 
       <div className="relative mx-auto grid max-w-[1180px] grid-cols-1 gap-10 px-6 pt-20 pb-24 lg:grid-cols-[1.35fr_1fr] lg:items-end lg:gap-14 lg:pt-28">
