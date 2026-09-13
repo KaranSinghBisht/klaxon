@@ -8,7 +8,7 @@ import "./globals.css";
    and transaction, because those are the parts a reader is meant to check rather than read. */
 const display = Bricolage_Grotesque({
   subsets: ["latin"],
-  variable: "--font-display",
+  variable: "--font-bricolage",
   weight: ["600", "700", "800"],
   display: "swap",
 });

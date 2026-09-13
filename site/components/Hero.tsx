@@ -29,45 +29,6 @@ function Hairlines() {
   );
 }
 
-function Artefacts() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 hidden 2xl:block">
-      <div
-        className="chip drift absolute top-[120px] left-[max(1rem,calc(50%-700px))] w-[228px] p-4"
-        style={{ "--tilt": "-4deg" } as React.CSSProperties}
-      >
-        <p className="gutter text-signal">exfiltrated</p>
-        <p className="mt-2 font-mono text-[26px] leading-none font-semibold text-signal tnum">
-          {STOLEN.varsRead}
-        </p>
-        <p className="mt-1 text-[12px] leading-snug text-ink-2">
-          variables read during <span className="font-mono">npm install</span>
-        </p>
-      </div>
-
-      <div
-        className="chip drift absolute bottom-[150px] left-[max(0.5rem,calc(50%-716px))] w-[224px] p-4"
-        style={{ "--tilt": "3deg", animationDelay: "-3s" } as React.CSSProperties}
-      >
-        <p className="gutter">memo = commitment</p>
-        <p className="mt-2 font-mono text-[10.5px] leading-relaxed break-all text-ink-2">
-          {short(RELEASED.commitment, 20, 6)}
-        </p>
-        <p className="mt-1.5 font-mono text-[10px] text-good">✓ matches the transfer</p>
-      </div>
-
-      <div
-        className="chip drift absolute top-[128px] right-[max(1rem,calc(50%-700px))] w-[232px] p-4"
-        style={{ "--tilt": "4deg", animationDelay: "-5s" } as React.CSSProperties}
-      >
-        <p className="gutter text-signal">refused · check {REFUSED.check}</p>
-        <p className="mt-2 text-[12.5px] leading-snug text-ink">{REFUSED.reason}</p>
-        <p className="mt-2 font-mono text-[10px] text-ink-3">paid {CHAIN.priceHbar} ℏ anyway</p>
-      </div>
-    </div>
-  );
-}
-
 export function Hero() {
   const ribbon = asset("ribbon.png", "ribbon.webp", "ribbon.jpg");
 
@@ -84,9 +45,8 @@ export function Hero() {
           className="plate pointer-events-none absolute top-[-6%] left-1/2 w-[1500px] max-w-none -translate-x-1/2 opacity-90 select-none"
         />
       ) : null}
-      <Artefacts />
 
-      <div className="relative mx-auto grid max-w-[1180px] grid-cols-1 gap-10 px-6 pt-20 pb-24 lg:grid-cols-[1.35fr_1fr] lg:items-end lg:gap-14 lg:pt-28">
+      <div className="veil-content mx-auto grid max-w-[1180px] grid-cols-1 gap-10 px-6 pt-20 pb-14 lg:grid-cols-[1.35fr_1fr] lg:items-end lg:gap-14 lg:pt-24">
         {/* The claim, as two states of one sentence: what they took, and what they got. */}
         <h1 className="display relative text-[clamp(2.9rem,8.2vw,6.4rem)] font-extrabold uppercase">
           <span className="ghost block">Take all of it</span>
@@ -127,8 +87,40 @@ export function Hero() {
         </div>
       </div>
 
+
+      {/* Three numbers from the runs themselves, sitting where they cannot collide with anything. */}
+      <div className="veil-content mx-auto max-w-[1180px] px-6">
+        <div className="grid grid-cols-1 divide-y divide-rule overflow-hidden rounded-xl border border-rule bg-panel/70 backdrop-blur sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div className="p-6">
+            <p className="display text-[40px] leading-none font-extrabold text-signal tnum">
+              {STOLEN.varsRead}
+            </p>
+            <p className="mt-2.5 text-[13.5px] leading-snug text-ink-2">
+              environment variables a compromised dependency read in the unprotected pipeline. One
+              was the deploy key.
+            </p>
+          </div>
+          <div className="p-6">
+            <p className="display text-[40px] leading-none font-extrabold text-ink tnum">
+              {CHAIN.priceHbar}
+              <span className="ml-1.5 text-[22px] text-ink-2">ℏ</span>
+            </p>
+            <p className="mt-2.5 text-[13.5px] leading-snug text-ink-2">
+              settled on Hedera by an attacker holding every credential — and refused at check{" "}
+              {REFUSED.check}, on the record.
+            </p>
+          </div>
+          <div className="p-6">
+            <p className="display text-[40px] leading-none font-extrabold text-good tnum">0</p>
+            <p className="mt-2.5 text-[13.5px] leading-snug text-ink-2">
+              secrets that same worm got out of the protected pipeline, across every run.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* The product, running, in browser chrome. */}
-      <div className="relative mx-auto max-w-[1100px] px-6 pb-20">
+      <div className="veil-content mx-auto max-w-[1100px] px-6 pt-16 pb-20">
         <a
           href="/audit"
           aria-label="Open the live KLAXON audit trail"

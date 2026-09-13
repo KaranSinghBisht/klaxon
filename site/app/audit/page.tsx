@@ -1,4 +1,5 @@
 import { AuditTrail } from "./AuditTrail";
+import { proveAll, readTopic } from "@/lib/audit";
 import { Footer, Nav } from "@/components/Chrome";
 import { CHAIN, WITNESS } from "@/lib/facts";
 
@@ -8,7 +9,11 @@ export const metadata = {
     "Every release and every refusal, read from Hedera in your own browser and re-checked against the payment that paid for it.",
 };
 
-export default function AuditPage() {
+export const revalidate = 60;
+
+export default async function AuditPage() {
+  const initial = await readTopic().catch(() => undefined);
+  const proofs = initial ? await proveAll(initial).catch(() => undefined) : undefined;
   return (
     <main className="min-h-screen">
       <Nav />
@@ -29,7 +34,7 @@ export default function AuditPage() {
           keep working and would show you the gap. That is the only reason it is worth looking at.
         </p>
 
-        <AuditTrail />
+        <AuditTrail initial={initial} proofs={proofs} />
 
         <p className="mt-10 font-mono text-[11px] leading-relaxed text-ink-3">
           witness account {CHAIN.witnessAccount} · registry {CHAIN.registry} on sepolia ·{" "}

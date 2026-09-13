@@ -2,87 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CHAIN, hashscanTx, runUrl, short } from "@/lib/facts";
+import { type AuditRecord, type Entry, type Proof, proveMemo, readTopic } from "@/lib/audit";
 
-const MIRROR = "https://testnet.mirrornode.hedera.com";
 
-type Claims = {
-  secret?: string;
-  environment?: string;
-  gen?: string;
-  run_id?: string;
-  run_attempt?: string;
-};
-
-type Record_ = {
-  type?: string;
-  ts?: string;
-  h?: string;
-  pay_tx?: string;
-  C?: Claims;
-  check?: number;
-  class?: string;
-  reason?: string;
-  epoch?: string;
-  sepolia_tx?: string;
-};
-
-type Entry = { body: Record_ | null; seqs: number[]; at: string };
-type Proof = { state: "ok" | "bad" | "unknown"; detail: string };
-
-/** HCS caps a message near 1 KB, so a record carrying a whole OIDC token arrives in pieces. */
-function reassemble(messages: any[]): Entry[] {
-  const groups = new Map<string, { n: number; m: any }[]>();
-  for (const m of messages) {
-    const ci = m.chunk_info ?? {};
-    const key = ci.initial_transaction_id
-      ? `${ci.initial_transaction_id.account_id}@${ci.initial_transaction_id.transaction_valid_start}`
-      : `solo-${m.sequence_number}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push({ n: ci.number ?? 1, m });
-  }
-  const out: Entry[] = [];
-  for (const parts of groups.values()) {
-    parts.sort((a, b) => a.n - b.n);
-    const text = parts.map((p) => atob(p.m.message)).join("");
-    const last = parts[parts.length - 1].m;
-    let body: Record_ | null = null;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = null;
-    }
-    out.push({ body, seqs: parts.map((p) => p.m.sequence_number), at: last.consensus_timestamp });
-  }
-  return out.sort((a, b) => Number(b.at) - Number(a.at));
-}
-
-const dashed = (id: string) => {
-  const m = /^(\d+\.\d+\.\d+)@(\d+)\.(\d+)$/.exec(id ?? "");
-  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
-};
-
-async function proveMemo(payTx: string | undefined, h: string | undefined): Promise<Proof> {
-  const id = payTx ? dashed(payTx) : null;
-  if (!id || !h) return { state: "unknown", detail: "no payment named in the record" };
-  try {
-    const res = await fetch(`${MIRROR}/api/v1/transactions/${id}`);
-    if (!res.ok) return { state: "unknown", detail: `mirror node answered ${res.status}` };
-    const tx = (await res.json()).transactions?.[0];
-    if (!tx) return { state: "unknown", detail: "not indexed yet" };
-    const memo = tx.memo_base64 ? atob(tx.memo_base64) : "";
-    const credit = (tx.transfers ?? []).find(
-      (t: any) => t.account === CHAIN.witnessAccount && t.amount > 0,
-    );
-    return memo === h
-      ? {
-          state: "ok",
-          detail: `memo is the commitment · witness credited ${credit ? credit.amount.toLocaleString() : "?"} tinybar`,
-        }
-      : { state: "bad", detail: `memo is ${short(memo, 10, 6) || "empty"}, not this commitment` };
-  } catch {
-    return { state: "unknown", detail: "could not reach the mirror node" };
-  }
-}
 
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
@@ -97,9 +19,9 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
 
 const link = "text-steel underline decoration-steel-dim/50 underline-offset-2 hover:brightness-125";
 
-function Card({ entry }: { entry: Entry }) {
+function Card({ entry, seeded }: { entry: Entry; seeded?: Proof }) {
   const b = entry.body;
-  const [proof, setProof] = useState<Proof | null>(null);
+  const [proof, setProof] = useState<Proof | null>(seeded ?? null);
 
   useEffect(() => {
     if (!b || b.type === "unrevoke") return;
@@ -212,23 +134,21 @@ function Card({ entry }: { entry: Entry }) {
   );
 }
 
-export function AuditTrail() {
-  const [entries, setEntries] = useState<Entry[] | null>(null);
+export function AuditTrail({ initial, proofs }: { initial?: Entry[]; proofs?: Record<string, Proof> }) {
+  const [entries, setEntries] = useState<Entry[] | null>(initial ?? null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setEntries(null);
     setError(null);
     try {
-      const res = await fetch(
-        `${MIRROR}/api/v1/topics/${CHAIN.topic}/messages?limit=100&order=asc`,
-      );
-      setEntries(reassemble((await res.json()).messages ?? []));
+      setEntries(await readTopic());
     } catch {
       setError("Could not reach the Hedera mirror node from this browser.");
     }
   }, []);
 
+  // Refresh in the background on mount. The server already handed us records, so this never blanks
+  // the page — it only replaces them with newer ones, and proves the browser can read Hedera too.
   useEffect(() => {
     load();
   }, [load]);
@@ -265,7 +185,9 @@ export function AuditTrail() {
         {!entries && !error && (
           <p className="font-mono text-[13px] text-ink-3">Reading consensus topic {CHAIN.topic}…</p>
         )}
-        {entries?.map((e) => <Card key={e.seqs.join("-")} entry={e} />)}
+        {entries?.map((e) => (
+          <Card key={e.seqs.join("-")} entry={e} seeded={proofs?.[e.seqs.join("-")]} />
+        ))}
       </div>
     </>
   );
