@@ -22,7 +22,7 @@
   --ink-2: #8f959e;
   --ink-3: #5c626b;
 
-  /* Polished steel — used for the chrome type fill and hairlines, never as a "brand colour". */
+  /* Polished steel — hairlines and the chrome type fill, never as a "brand colour". */
   --steel: #c3c9d2;
   --steel-dim: #6f7681;
 
@@ -203,13 +203,6 @@ body {
   filter: drop-shadow(0 2px 16px rgba(5, 5, 6, 0.75));
 }
 
-/* Hairline curves drifting behind the type, the way a schematic does. */
-.hairline {
-  stroke: rgba(195, 201, 210, 0.13);
-  fill: none;
-  stroke-width: 1;
-}
-
 /* The alarm. Used once. */
 @keyframes pulse {
   0%,
@@ -279,46 +272,6 @@ body {
 .veil-content {
   position: relative;
   z-index: 4;
-}
-
-/* Survey hairlines at angles that do not agree with each other, so the eye reads a drawing
-   underneath the surface instead of a grid. */
-.veil-lines {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  overflow: hidden;
-}
-.veil-lines::before,
-.veil-lines::after {
-  content: "";
-  position: absolute;
-  inset: -40%;
-  background-image:
-    linear-gradient(
-      107deg,
-      transparent 49.85%,
-      rgba(195, 201, 210, 0.1) 49.95%,
-      rgba(195, 201, 210, 0.1) 50.05%,
-      transparent 50.15%
-    ),
-    linear-gradient(
-      74deg,
-      transparent 49.88%,
-      rgba(195, 201, 210, 0.07) 49.98%,
-      rgba(195, 201, 210, 0.07) 50.08%,
-      transparent 50.18%
-    );
-}
-.veil-lines::after {
-  inset: -18%;
-  background-image: linear-gradient(
-    96deg,
-    transparent 49.9%,
-    rgba(195, 201, 210, 0.055) 50%,
-    transparent 50.1%
-  );
 }
 
 ::selection {

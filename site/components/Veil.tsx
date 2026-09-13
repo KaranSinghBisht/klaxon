@@ -3,25 +3,21 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
-const ColorBends = dynamic(() => import("./color-bends"), { ssr: false });
+const MoltenMetal = dynamic(() => import("./MoltenMetal"), { ssr: false });
 
 /**
- * The moving backdrop for dark surfaces: cold steel bands drifting under the type, with one ember
- * of alarm red buried far enough down that you read it as heat off metal rather than as a colour.
+ * The moving backdrop: molten steel, not colour.
  *
- * Client-only, and only where it is affordable and welcome — wide screens, WebGL present, motion not
- * reduced. The static `.veil` gradient underneath paints first and is what everyone else sees, so
- * the page never flashes and never depends on this arriving.
+ * The palette is deliberately monochrome — cold graphite in shadow, brushed steel through the
+ * filaments, near-white where they run hottest. There is no warm hue anywhere in it, because red on
+ * this site means an alarm fired, and a background that glows red all day would spend that meaning
+ * before the page has said anything.
+ *
+ * Client-only, and only where it is affordable and welcome: wide screens, WebGL present, motion not
+ * reduced. The static `.veil` gradient underneath paints first, so the page never flashes and never
+ * depends on this arriving.
  */
-export function Veil({
-  intensity = 0.9,
-  speed = 0.1,
-  className = "",
-}: {
-  intensity?: number;
-  speed?: number;
-  className?: string;
-}) {
+export function Veil({ className = "" }: { className?: string }) {
   const [canAnimate, setCanAnimate] = useState(false);
 
   useEffect(() => {
@@ -31,7 +27,7 @@ export function Veil({
       let webgl = false;
       try {
         const c = document.createElement("canvas");
-        webgl = Boolean(c.getContext("webgl2") || c.getContext("webgl"));
+        webgl = Boolean(c.getContext("webgl2"));
       } catch {
         webgl = false;
       }
@@ -54,27 +50,25 @@ export function Veil({
       style={{ position: "absolute", inset: 0, zIndex: 1 }}
       className={`pointer-events-none ${className}`}
     >
-      <ColorBends
-        style={{ width: "100%", height: "100%" }}
-        colors={[
-          "#0b0d10", // graphite, most of the field
-          "#232a33", // cold shadow in the metal
-          "#4a5765", // brushed steel
-          "#8d99a8", // the highlight that catches the shop light
-          "#3a1416", // an ember, kept almost black
-        ]}
-        speed={speed}
-        intensity={intensity}
-        rotation={-18}
-        autoRotate={0.02}
-        scale={1.25}
-        frequency={1.35}
-        warpStrength={0.85}
-        bandWidth={2.1}
-        mouseInfluence={0.08}
-        parallax={0.03}
-        noise={0.035}
-        transparent
+      <MoltenMetal
+        color1="#141a21"
+        color2="#5d6774"
+        color3="#e6eaef"
+        colorMode="molten"
+        speed={0.22}
+        scale={3.4}
+        detail={4}
+        glow={1.5}
+        coreSize={0.09}
+        swirl={1.1}
+        fold={-0.24}
+        blackPoint={0.08}
+        brightness={1.15}
+        grain
+        grainIntensity={0.04}
+        mouseInteraction
+        mouseStrength={0.22}
+        opacity={0.85}
       />
     </div>
   );
