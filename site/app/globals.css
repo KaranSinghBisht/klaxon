@@ -156,11 +156,21 @@ body {
   color: transparent;
 }
 
-/* Ghost line: the same words, outlined only, sitting behind and offset. Two states of the same
-   sentence — what you took, and what you got. */
+/* Ghost line: the same words, outlined only. It has to stay legible where the ribbon crosses it,
+   so the stroke is brighter than it would otherwise need to be and carries a dark halo — without
+   that it disappears entirely against the chrome. */
 .ghost {
   color: transparent;
-  -webkit-text-stroke: 1px rgba(195, 201, 210, 0.22);
+  -webkit-text-stroke: 1.25px rgba(214, 220, 228, 0.55);
+  paint-order: stroke fill;
+  text-shadow:
+    0 0 14px rgba(5, 5, 6, 0.85),
+    0 0 40px rgba(5, 5, 6, 0.7);
+}
+
+/* The filled line sits on top of the metal, so it gets the same treatment. */
+.chrome {
+  filter: drop-shadow(0 2px 16px rgba(5, 5, 6, 0.75));
 }
 
 /* Hairline curves drifting behind the type, the way a schematic does. */

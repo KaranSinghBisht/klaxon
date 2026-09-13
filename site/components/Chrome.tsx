@@ -68,9 +68,9 @@ export function Stack() {
           <p className="gutter">the part nobody puts on a landing page</p>
           <p className="mt-2.5 max-w-[70ch] text-[14.5px] leading-relaxed text-ink-2">
             Publishing one audit record costs the witness{" "}
-            <span className="font-mono text-ink tnum">{COST.total.toLocaleString()}</span> tinybar in
+            <span className="font-mono text-ink tnum">{COST.total.toLocaleString("en-US")}</span> tinybar in
             consensus fees, against{" "}
-            <span className="font-mono text-ink tnum">{COST.revenue.toLocaleString()}</span> of
+            <span className="font-mono text-ink tnum">{COST.revenue.toLocaleString("en-US")}</span> of
             revenue — about a <span className="text-ink">{COST.ratio}× loss per release</span>,
             measured off the mirror node. The record chunks across three messages because it carries
             the runner&apos;s whole OIDC token, so a verifier needs nobody&apos;s permission to check

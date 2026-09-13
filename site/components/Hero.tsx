@@ -1,15 +1,6 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import Image from "next/image";
 import { CHAIN, REFUSED, RELEASED, STOLEN, short } from "@/lib/facts";
 import { Veil } from "./Veil";
-
-/** Use a render if one has been dropped into public/. The page is composed to work without it. */
-function asset(...names: string[]): string | null {
-  for (const n of names) {
-    if (existsSync(join(process.cwd(), "public", n))) return `/${n}`;
-  }
-  return null;
-}
 
 /** Schematic hairlines drifting behind the type — the drawing under the machined part. */
 function Hairlines() {
@@ -30,23 +21,25 @@ function Hairlines() {
 }
 
 export function Hero() {
-  const ribbon = asset("ribbon.png", "ribbon.webp", "ribbon.jpg");
-
   return (
     <section className="veil relative overflow-hidden border-b border-rule">
       <div className="veil-lines" aria-hidden />
       <Veil />
       <Hairlines />
-      {ribbon ? (
-        <img
-          src={ribbon}
+            {/* Both renders carry real alpha, so they composite as-is. The ribbon sits behind the
+          headline and is allowed to run off both edges; nothing in it needs to be read. */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-[2%] z-[2] flex justify-center">
+        <Image
+          src="/ribbon.png"
           alt=""
-          aria-hidden
-          className="plate pointer-events-none absolute top-[-6%] left-1/2 w-[1500px] max-w-none -translate-x-1/2 opacity-90 select-none"
+          width={1642}
+          height={958}
+          priority
+          className="w-[1500px] max-w-none opacity-[0.42] select-none"
         />
-      ) : null}
+      </div>
 
-      <div className="veil-content mx-auto grid max-w-[1180px] grid-cols-1 gap-10 px-6 pt-20 pb-14 lg:grid-cols-[1.35fr_1fr] lg:items-end lg:gap-14 lg:pt-24">
+      <div className="veil-content mx-auto grid max-w-[1180px] grid-cols-1 gap-10 px-6 pt-20 pb-14 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-10 lg:pt-24">
         {/* The claim, as two states of one sentence: what they took, and what they got. */}
         <h1 className="display relative text-[clamp(2.9rem,8.2vw,6.4rem)] font-extrabold uppercase">
           <span className="ghost block">Take all of it</span>
@@ -54,7 +47,25 @@ export function Hero() {
           <span className="chrome relative z-10 -mt-[0.06em] block">can&apos;t use it</span>
         </h1>
 
-        <div className="lg:pb-4">
+        <div className="relative flex justify-center lg:justify-end">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-1/2 h-[380px] w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-40 blur-[90px]"
+            style={{ background: "radial-gradient(circle, rgba(255,59,48,0.45) 0%, transparent 68%)" }}
+          />
+          <Image
+            src="/horn.png"
+            alt="An industrial alarm horn in gunmetal and worn brass"
+            width={1254}
+            height={1254}
+            priority
+            className="relative w-[300px] drop-shadow-[0_40px_80px_rgba(0,0,0,0.9)] sm:w-[380px] lg:w-[440px]"
+          />
+        </div>
+      </div>
+
+      <div className="veil-content mx-auto -mt-8 max-w-[1180px] px-6 pb-4">
+        <div className="max-w-[52ch]">
           <p className="max-w-[46ch] text-[16.5px] leading-relaxed text-ink-2">
             The encrypted share out of the repository. The Ledger credential off the runner. The
             payment key. A copy of the release step itself. None of it opens the secret anywhere but

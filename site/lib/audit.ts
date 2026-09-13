@@ -107,7 +107,7 @@ export async function proveMemo(payTx?: string, h?: string): Promise<Proof> {
     return memo === h
       ? {
           state: "ok",
-          detail: `memo is the commitment · witness credited ${credit ? credit.amount.toLocaleString() : "?"} tinybar`,
+          detail: `memo is the commitment · witness credited ${credit ? credit.amount.toLocaleString("en-US") : "?"} tinybar`,
         }
       : { state: "bad", detail: `memo does not match this commitment` };
   } catch {

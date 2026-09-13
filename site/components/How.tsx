@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { CHAIN } from "@/lib/facts";
 
 const STEPS = [
@@ -35,11 +36,20 @@ export function How() {
         <h2 className="display mt-4 max-w-[17ch] text-[clamp(2rem,4.6vw,3.3rem)] font-bold">
           A secret that has to ask, in public, before it opens.
         </h2>
-        <p className="mt-6 max-w-[62ch] text-[16.5px] leading-relaxed text-ink-2">
-          KLAXON does not try to stop a job from using a credential it was authorised to have. It
-          makes the <span className="text-ink">first</span> read impossible to perform quietly, and
-          it names exactly what was read, by which workflow, at which commit.
-        </p>
+        <div className="mt-6 grid items-center gap-8 lg:grid-cols-[1fr_0.85fr]">
+          <p className="max-w-[58ch] text-[16.5px] leading-relaxed text-ink-2">
+            KLAXON does not try to stop a job from using a credential it was authorised to have. It
+            makes the <span className="text-ink">first</span> read impossible to perform quietly, and
+            it names exactly what was read, by which workflow, at which commit.
+          </p>
+          <Image
+            src="/key-split.png"
+            alt="A steel key sliced lengthwise into two halves"
+            width={1619}
+            height={971}
+            className="w-full max-w-[440px] justify-self-center opacity-90 drop-shadow-[0_30px_60px_rgba(0,0,0,0.85)] lg:justify-self-end"
+          />
+        </div>
 
         <ol className="mt-12 grid gap-3 sm:grid-cols-2">
           {STEPS.map((s) => (
