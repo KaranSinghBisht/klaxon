@@ -55,12 +55,15 @@
   --color-good-soft: var(--good-soft);
   --color-good-line: var(--good-line);
   --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-bricolage), var(--font-hanken), sans-serif;
+  --font-display: var(--font-newsreader), var(--font-hanken), sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 html {
   scroll-behavior: smooth;
+  /* Dark scrollbars and form controls. Without this the browser paints a light scrollbar track
+     down the side of a black page. */
+  color-scheme: dark;
 }
 body {
   background: var(--ground);
@@ -85,16 +88,6 @@ body {
   color: var(--ink-3);
 }
 
-/* Hairline cells. The rule between them is the structure; the cell itself has no fill, so the page
-   reads as a ruled sheet rather than a stack of boxes. */
-.cell {
-  border-top: 1px solid var(--rule);
-}
-@media (min-width: 640px) {
-  .cell-l {
-    border-left: 1px solid var(--rule);
-  }
-}
 
 /* The hatch behind a mock: a drawing board, not a panel. */
 .hatch {
@@ -118,45 +111,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* The floating artefacts around the hero. Every one carries real data from a real run, so they
-   read as instruments hanging in the air rather than decoration. */
-.chip {
-  background: linear-gradient(180deg, rgba(26, 26, 30, 0.96), rgba(16, 16, 19, 0.96));
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  box-shadow:
-    0 20px 50px -24px rgba(0, 0, 0, 0.9),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(6px);
-  transform: rotate(var(--tilt, 0deg));
-}
-.drift {
-  animation: drift 11s ease-in-out infinite;
-}
-@keyframes drift {
-  0%,
-  100% {
-    transform: rotate(var(--tilt, 0deg)) translateY(0);
-  }
-  50% {
-    transform: rotate(var(--tilt, 0deg)) translateY(-9px);
-  }
-}
 
-/* A faint scanline wash, low enough that it reads as texture rather than a gimmick. */
-.grain::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    0deg,
-    rgba(255, 255, 255, 0.014) 0px,
-    rgba(255, 255, 255, 0.014) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-}
 
 @media (prefers-reduced-motion: reduce) {
   .drift {
@@ -167,41 +122,6 @@ body {
   }
 }
 
-/* ---- the hero type stack --------------------------------------------------------------- */
-
-/* Filled line: polished steel, lit from above. A gradient across the glyphs reads as a machined
-   surface catching a shop light rather than as a "gradient text" effect. */
-.chrome {
-  background: linear-gradient(
-    177deg,
-    #ffffff 2%,
-    #cfd5dd 22%,
-    #767d88 47%,
-    #e9edf2 58%,
-    #9aa1ab 74%,
-    #4e545d 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/* Ghost line: the same words, outlined only. It has to stay legible where the ribbon crosses it,
-   so the stroke is brighter than it would otherwise need to be and carries a dark halo — without
-   that it disappears entirely against the chrome. */
-.ghost {
-  color: transparent;
-  -webkit-text-stroke: 1.25px rgba(214, 220, 228, 0.55);
-  paint-order: stroke fill;
-  text-shadow:
-    0 0 14px rgba(5, 5, 6, 0.85),
-    0 0 40px rgba(5, 5, 6, 0.7);
-}
-
-/* The filled line sits on top of the metal, so it gets the same treatment. */
-.chrome {
-  filter: drop-shadow(0 2px 16px rgba(5, 5, 6, 0.75));
-}
 
 /* The alarm. Used once. */
 @keyframes pulse {
@@ -219,11 +139,6 @@ body {
   animation: pulse 2.4s ease-in-out infinite;
 }
 
-/* Assets composite over pure black with `screen`, so a render with a black background drops its
-   background automatically and only the metal survives. */
-.plate {
-  mix-blend-mode: screen;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .alarm {

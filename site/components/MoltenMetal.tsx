@@ -256,17 +256,22 @@ const MoltenMetal: React.FC<MoltenMetalProps> = ({
     const targetMouse: [number, number] = [0.5, 0.5];
     const currentMouse: [number, number] = [0.5, 0.5];
 
+    // The canvas lives under `pointer-events: none`, so it never receives mouse events itself.
+    // Listen on the window instead and project the pointer into the canvas; off it, ease home.
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      targetMouse[0] = (e.clientX - rect.left) / rect.width;
-      targetMouse[1] = 1.0 - (e.clientY - rect.top) / rect.height;
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      const inside = x >= 0 && x <= 1 && y >= 0 && y <= 1;
+      targetMouse[0] = inside ? x : 0.5;
+      targetMouse[1] = inside ? 1.0 - y : 0.5;
     };
     const handleMouseLeave = () => {
       targetMouse[0] = 0.5;
       targetMouse[1] = 0.5;
     };
-    canvas.addEventListener("mousemove", handleMouseMove);
-    canvas.addEventListener("mouseleave", handleMouseLeave);
+    window.addEventListener("mousemove", handleMouseMove);
+    document.documentElement.addEventListener("mouseleave", handleMouseLeave);
 
     let raf = 0;
     let isVisible = true;
@@ -318,8 +323,8 @@ const MoltenMetal: React.FC<MoltenMetalProps> = ({
       ro.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
-      canvas.removeEventListener("mousemove", handleMouseMove);
-      canvas.removeEventListener("mouseleave", handleMouseLeave);
+      window.removeEventListener("mousemove", handleMouseMove);
+      document.documentElement.removeEventListener("mouseleave", handleMouseLeave);
       ctxMap.delete(container);
       if (canvas.parentNode === container) container.removeChild(canvas);
       gl.getExtension("WEBGL_lose_context")?.loseContext();

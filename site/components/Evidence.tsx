@@ -19,7 +19,7 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
       <span className="w-[104px] shrink-0 font-mono text-[10px] tracking-[0.07em] text-ink-3 uppercase">
         {k}
       </span>
-      <span className="font-mono text-[11.5px] break-all text-ink-2">{children}</span>
+      <span className="font-mono text-[11.5px] break-words text-ink-2">{children}</span>
     </div>
   );
 }
@@ -35,18 +35,17 @@ type FigProps = {
 
 function Fig({ fig, verdict, verdictClass, head, body, children }: FigProps) {
   return (
-    <article className="flex flex-col">
+    /* At `lg` the three figures share four grid rows — label, panel, verdict, caption — so the
+       panels are one height and the captions sit on one line, whatever each one holds. The panel
+       carries the data; the card carries no colour, so the verdict chip alone says which this is. */
+    <article className="flex flex-col lg:row-span-4 lg:grid lg:grid-rows-subgrid">
       <p className="gutter">{fig}</p>
-      {/* The panel carries the data; the card carries no colour, so the verdict chip is the only
-          thing that signals which of the three this is. */}
-      <div className="mt-3 flex-1 rounded-xl border border-rule bg-panel/40 p-5">{children}</div>
-      <div className="mt-5">
-        <p className="flex flex-wrap items-center gap-2.5">
-          <span className={`gutter border px-2 py-0.5 ${verdictClass}`}>{verdict}</span>
-          <span className="text-[15.5px] font-semibold text-ink">{head}</span>
-        </p>
-        <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-2">{body}</p>
-      </div>
+      <div className="mt-3 rounded-xl border border-rule bg-panel/40 p-5">{children}</div>
+      <p className="mt-5 flex flex-wrap items-center gap-2.5">
+        <span className={`gutter border px-2 py-0.5 ${verdictClass}`}>{verdict}</span>
+        <span className="text-[15.5px] font-semibold text-ink">{head}</span>
+      </p>
+      <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-2">{body}</p>
     </article>
   );
 }
@@ -54,24 +53,23 @@ function Fig({ fig, verdict, verdictClass, head, body, children }: FigProps) {
 export function Evidence() {
   return (
     <section id="evidence" className="border-b border-rule bg-ground-2">
-      <div className="mx-auto max-w-[1180px] px-6 py-20 sm:py-28">
+      <div className="mx-auto max-w-[1280px] px-6 py-14 lg:py-16">
         <p className="gutter">evidence</p>
-        <h2 className="display mt-6 max-w-[30ch] text-[clamp(1.9rem,4vw,3rem)]">
+        <h2 className="display mt-5 max-w-[38ch] text-[clamp(1.8rem,3vw,2.6rem)]">
           Three runs, one worm, one secret.
           <span className="lead-dim">
             {" "}
-            Each happened on a hosted GitHub runner, paid a real Hedera transaction, and left a
-            record anyone can read. Click any of it.
+            All on hosted GitHub runners, all paid for on Hedera, all on the record. Click any of it.
           </span>
         </h2>
 
-        <div className="mt-14 grid gap-10 lg:grid-cols-3 lg:gap-8">
+        <div className="mt-10 grid gap-8 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-0">
           <Fig
             fig="fig 0.1 — the baseline"
             verdict="stolen"
             verdictClass="border-signal-line bg-signal-soft text-signal"
             head="An ordinary pipeline"
-            body="The deploy key is a normal Actions secret, so it sits in the environment of every step — including the one where a compromised dependency's install script runs."
+            body="The deploy key is an ordinary Actions secret, so a compromised dependency's install script reads it like anything else."
           >
             <Row k="run">
               <a className={link} href={runUrl(STOLEN.run)}>
@@ -94,7 +92,7 @@ export function Evidence() {
             verdict="released"
             verdictClass="border-good-line bg-good-soft text-good"
             head="The same pipeline, split"
-            body="Half the key is committed in public. The deploy job pays, proves who it is, and is served — and the plaintext exists only inside that one step. The worm is still there, and finds nothing."
+            body="Half the key is public. The deploy job pays, proves who it is, and is served. The worm is still there, and finds nothing."
           >
             <Row k="run">
               <a className={link} href={runUrl(RELEASED.run)}>
@@ -123,7 +121,7 @@ export function Evidence() {
             verdict="refused"
             verdictClass="border-signal-line bg-signal-soft text-signal"
             head="Everything stolen, run anyway"
-            body="The Key Ring credential, the payment key, the encrypted share and a copy of the release step — replayed from a job they control. The payment settles. The witness reads GitHub's own token and refuses."
+            body="Every credential, replayed from a job the attacker controls. The payment settles. The witness reads GitHub's own token and refuses."
           >
             <Row k="run">
               <a className={link} href={runUrl(REFUSED.run)}>
@@ -151,9 +149,9 @@ export function Evidence() {
           </Fig>
         </div>
 
-        <p className="mt-12 max-w-[70ch] text-[13.5px] leading-relaxed text-ink-3">
-          The two treasuries are controlled by different keys on purpose. If they shared one, the
-          protected balance staying untouched would prove nothing at all.
+        <p className="mt-8 max-w-[70ch] text-[13.5px] leading-relaxed text-ink-3">
+          The two treasuries use different keys on purpose. With a shared key, an untouched protected
+          balance would prove nothing.
         </p>
       </div>
     </section>

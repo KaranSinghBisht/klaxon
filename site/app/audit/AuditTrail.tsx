@@ -4,15 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { CHAIN, hashscanTx, runUrl, short } from "@/lib/facts";
 import { type AuditRecord, type Entry, type Proof, proveMemo, readTopic } from "@/lib/audit";
 
-
-
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 border-t border-rule-soft py-2 sm:flex-row sm:gap-4">
       <span className="w-[150px] shrink-0 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
         {k}
       </span>
-      <span className="font-mono text-[12px] break-all text-ink">{children}</span>
+      <span className="font-mono text-[12px] break-words text-ink">{children}</span>
     </div>
   );
 }

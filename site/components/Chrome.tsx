@@ -1,27 +1,28 @@
 import { CHAIN, COST, DEMO_REPO, REPO, WITNESS } from "@/lib/facts";
 import { Mark } from "./Mark";
 
+/* Section anchors are written as `/#id` so they still work from /audit, where none of the ids exist. */
+const LINKS = [
+  ["Problem", "/#problem"],
+  ["Protocol", "/#protocol"],
+  ["How", "/#how"],
+  ["Evidence", "/#evidence"],
+] as const;
+
 export function Nav() {
   return (
     <nav className="sticky top-0 z-50 border-b border-rule bg-ground/85 backdrop-blur">
-      <div className="mx-auto flex max-w-[1040px] items-center gap-5 px-6 py-3.5">
-        <a href="#top" className="flex items-center gap-2.5">
-          <Mark className="h-[18px] w-[18px] text-ink" />
+      <div className="mx-auto flex h-14 max-w-[1280px] items-center gap-5 px-6">
+        <a href="/" className="flex items-center gap-2.5" aria-label="KLAXON home">
+          <Mark className="h-5 w-5 text-ink" />
           <span className="text-[15px] font-bold tracking-[0.14em]">KLAXON</span>
         </a>
         <div className="ml-auto flex items-center gap-5 text-[13.5px] text-ink-2">
-          <a href="#problem" className="hidden hover:text-ink sm:inline">
-            Problem
-          </a>
-          <a href="#protocol" className="hidden hover:text-ink sm:inline">
-            Protocol
-          </a>
-          <a href="#how" className="hidden hover:text-ink sm:inline">
-            How
-          </a>
-          <a href="#evidence" className="hidden hover:text-ink sm:inline">
-            Evidence
-          </a>
+          {LINKS.map(([label, href]) => (
+            <a key={href} href={href} className="hidden hover:text-ink sm:inline">
+              {label}
+            </a>
+          ))}
           <a href="/audit" className="hover:text-ink">
             Audit
           </a>
@@ -41,19 +42,19 @@ const STACK = [
   {
     who: "Ledger",
     what: "Key Ring, on a host with no USB port",
-    body: "wallet-cli ring enrols the trustchain on a physical Nano S Plus. A hosted GitHub runner then restores it headlessly — no device attached — and decrypts share A. The device alone can move policy or lift a revocation.",
+    body: "The trustchain is enrolled on a physical Nano S Plus. A hosted runner restores it headlessly, with no device attached, and decrypts share A. Only the device can change policy or lift a revocation.",
   },
   {
     who: "Hedera",
     what: "x402, settled through Blocky402",
-    body: `The witness is a live x402-gated service. Every release is a real HBAR transfer whose memo is the commitment hash, and every decision — including every refusal — is published to consensus topic ${CHAIN.topic}.`,
+    body: `The witness is a live x402-gated service. Every release is an HBAR transfer whose memo is the commitment hash, and every decision, refusals included, is published to topic ${CHAIN.topic}.`,
   },
 ];
 
 export function Stack() {
   return (
     <section className="border-b border-rule bg-ground-2">
-      <div className="mx-auto max-w-[1040px] px-6 py-16">
+      <div className="mx-auto max-w-[1040px] px-6 py-14">
         <p className="gutter">what it is built on, and why</p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {STACK.map((s) => (
@@ -68,14 +69,14 @@ export function Stack() {
         <div className="mt-4 rounded-xl border border-rule bg-panel p-6">
           <p className="gutter">the part nobody puts on a landing page</p>
           <p className="mt-2.5 max-w-[70ch] text-[14.5px] leading-relaxed text-ink-2">
-            Publishing one audit record costs the witness{" "}
+            One audit record costs the witness{" "}
             <span className="font-mono text-ink tnum">{COST.total.toLocaleString("en-US")}</span> tinybar in
-            consensus fees, against{" "}
+            consensus fees against{" "}
             <span className="font-mono text-ink tnum">{COST.revenue.toLocaleString("en-US")}</span> of
-            revenue — about a <span className="text-ink">{COST.ratio}× loss per release</span>,
-            measured off the mirror node. The record chunks across three messages because it carries
-            the runner&apos;s whole OIDC token, so a verifier needs nobody&apos;s permission to check
-            it. The {CHAIN.priceHbar} ℏ was never a fee that recovers cost. It is the commitment.
+            revenue: a <span className="text-ink">{COST.ratio}× loss per release</span>, measured off
+            the mirror node. The record spans three messages because it carries the runner&apos;s
+            whole OIDC token, so anyone can verify it without asking. The {CHAIN.priceHbar} ℏ was
+            never a fee. It is the commitment.
           </p>
         </div>
       </div>

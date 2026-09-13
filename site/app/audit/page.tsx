@@ -23,15 +23,14 @@ export default async function AuditPage() {
           Don&apos;t take our word for any of it.
         </h1>
         <p className="mt-5 max-w-[64ch] text-[16px] leading-relaxed text-ink-2">
-          This page reads consensus topic{" "}
-          <span className="font-mono text-ink">{CHAIN.topic}</span> straight from Hedera&apos;s
-          public mirror node, reassembles the chunked records, and then — for every release and
-          every refusal — fetches the payment and checks in your browser that the transaction memo
-          really is the commitment hash the runner signed.
+          This page reads topic <span className="font-mono text-ink">{CHAIN.topic}</span> from
+          Hedera&apos;s public mirror node, reassembles the chunked records, and for every release
+          and refusal checks in your browser that the payment memo is the commitment the runner
+          signed.
         </p>
         <p className="mt-3 max-w-[64ch] text-[15px] leading-relaxed text-ink-3">
-          It never calls the witness. If that service went down, or started lying, this page would
-          keep working and would show you the gap. That is the only reason it is worth looking at.
+          It never calls the witness. If that service went down or started lying, this page would
+          keep working and show the gap.
         </p>
 
         <AuditTrail initial={initial} proofs={proofs} />

@@ -105,54 +105,64 @@ const STEPS = [
     n: "01",
     head: "Split",
     mock: <MockEnc />,
-    body: "Share A is encrypted under your Ledger Key Ring and committed to the repository in public. Share B never leaves the witness. Neither half is worth anything alone, so the thing in your repo is safe to lose.",
+    body: "Share A is encrypted under your Ledger Key Ring and committed in public. Share B never leaves the witness. Neither half is worth anything alone.",
   },
   {
     n: "02",
     head: "Pay to ask",
     mock: <MockPay />,
-    body: "The runner signs a commitment naming the secret, the environment and the run, hashes it, and pays on Hedera with that hash as the transaction memo. The request and the public record are one act.",
+    body: "The runner signs a commitment naming the secret, the environment and the run, and pays on Hedera with its hash as the memo. Asking and going on record are one act.",
   },
   {
     n: "03",
     head: "Prove who",
     mock: <MockClaims />,
-    body: "The witness checks GitHub's OIDC token against a policy whose hash the owner's physical Ledger anchored on Sepolia. A job the policy does not name gets nothing, whatever else it holds.",
+    body: "The witness checks GitHub's OIDC token against a policy the owner's Ledger anchored on Sepolia. A job the policy does not name gets nothing, whatever else it holds.",
   },
   {
     n: "04",
     head: "Publish first",
     mock: <MockRecord />,
-    body: "The decision reaches a Hedera consensus topic before share B is returned. The witness cannot suppress it, because it did not write it, and cannot back-date it, because Hedera ordered it.",
+    body: "The decision reaches a Hedera topic before share B is returned. The witness did not write it, so it cannot suppress it. Hedera ordered it, so nobody can back-date it.",
   },
 ];
+
+/* Hairlines between the steps: one column on phones, two at `sm`, four at `lg`. A rule goes on the
+   left of every cell that is not first in its row and on top of every cell that starts a new row,
+   and that is a different set of cells at each width. */
+function stepRules(i: number): string {
+  const top = i > 0 ? "border-t" : "";
+  const sm = i === 1 ? "sm:border-t-0 sm:border-l" : i === 3 ? "sm:border-l" : "";
+  const lg = i >= 2 ? "lg:border-t-0 lg:border-l" : "";
+  return `${top} ${sm} ${lg}`;
+}
 
 export function How() {
   return (
     <section id="how" className="border-b border-rule bg-ground-2">
-      <div className="mx-auto max-w-[1100px] px-6 py-20 sm:py-28">
+      <div className="mx-auto max-w-[1280px] px-6 py-12">
         <p className="gutter">what we built</p>
 
-        <div className="mt-6 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-          <h2 className="display max-w-[18ch] text-[clamp(1.9rem,4vw,3rem)]">
+        <div className="mt-5 grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+          <h2 className="display max-w-[20ch] text-[clamp(1.8rem,3vw,2.6rem)]">
             A secret that has to ask, in public, before it opens.
           </h2>
           <p className="max-w-[52ch] text-[15.5px] leading-relaxed text-ink-2 lg:pt-2">
-            KLAXON does not stop a job using a credential it was authorised to have. It makes the{" "}
-            <span className="text-ink">first</span> read impossible to perform quietly, and it names
-            exactly what was read, by which workflow, at which commit. Every panel below is a real
-            fragment of a real run.
+            KLAXON does not stop an authorised job using its credential. It makes the{" "}
+            <span className="text-ink">first</span> read impossible to do quietly, and names what was
+            read, by which workflow, at which commit. Every panel below is a real fragment of a real
+            run.
           </p>
         </div>
 
-        <ol className="mt-14 grid grid-cols-1 border-t border-rule sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="mt-8 grid grid-cols-1 border-t border-rule sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s, i) => (
             <li
               key={s.n}
-              className={`flex flex-col ${i > 0 ? "sm:border-l sm:border-rule" : ""} ${i === 2 ? "lg:border-l" : ""}`}
+              className={`flex flex-col border-rule sm:row-span-2 sm:grid sm:grid-rows-subgrid ${stepRules(i)}`}
             >
-              <div className="hatch border-b border-rule p-5">{s.mock}</div>
-              <div className="flex-1 p-5">
+              <div className="hatch flex items-center border-b border-rule p-5">{s.mock}</div>
+              <div className="p-5">
                 <p className="flex items-baseline gap-2.5">
                   <span className="font-mono text-[11px] text-steel-dim tabular-nums">{s.n}</span>
                   <span className="display text-[20px] text-ink">{s.head}</span>
@@ -163,13 +173,12 @@ export function How() {
           ))}
         </ol>
 
-        <div className="mt-12 border-l-2 border-l-signal bg-panel/60 py-5 pr-6 pl-6">
+        <div className="mt-8 border-l-2 border-l-signal bg-panel/60 py-5 pr-6 pl-6">
           <p className="gutter text-signal">the one exception, said out loud</p>
           <p className="mt-2.5 max-w-[70ch] text-[14.5px] leading-relaxed text-ink-2">
-            A job that was <span className="text-ink">already authorised</span> can read what it was
-            authorised to receive. That is true of anything that hands a process a working
-            credential, and pretending otherwise would be a lie you could check in ten minutes. What
-            changes is that the read is no longer free, no longer silent, and no longer deniable.
+            An <span className="text-ink">authorised</span> job can read what it was authorised to
+            receive. That is true of anything that hands a process a working credential. What changes
+            is that the read is no longer free, silent, or deniable.
           </p>
         </div>
       </div>

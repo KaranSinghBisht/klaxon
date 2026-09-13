@@ -8,7 +8,7 @@ import "./globals.css";
    and transaction, because those are the parts a reader is meant to check rather than read. */
 const display = Newsreader({
   subsets: ["latin"],
-  variable: "--font-bricolage",
+  variable: "--font-newsreader",
   weight: ["300", "400", "500", "600"],
   style: ["normal", "italic"],
   display: "swap",
@@ -29,6 +29,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://klaxon-ethonline.vercel.app"),
   title: "KLAXON — stolen, but never quietly",
   description:
     "CI secrets that a stolen credential cannot use. Share A is encrypted under a Ledger Key Ring; share B is released only against a Hedera payment whose memo is the commitment, bound to the workflow that asked.",

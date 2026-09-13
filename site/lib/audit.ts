@@ -67,15 +67,24 @@ export function reassemble(messages: unknown[]): Entry[] {
   return out.sort((a, b) => Number(b.at) - Number(a.at));
 }
 
-/** Read the topic. Used on the server so the page is never served empty, and again in the browser. */
+type TopicPage = { messages?: unknown[]; links?: { next?: string | null } };
+
+/**
+ * Read the whole topic. Used on the server so the page is never served empty, and again in the
+ * browser. The mirror node pages at 100 messages and a record is three of them, so without
+ * following `links.next` the trail would silently stop growing at about thirty records.
+ */
 export async function readTopic(signal?: AbortSignal): Promise<Entry[]> {
-  const res = await fetch(
-    `${MIRROR}/api/v1/topics/${CHAIN.topic}/messages?limit=100&order=asc`,
-    { signal, next: { revalidate: 60 } } as RequestInit,
-  );
-  if (!res.ok) throw new Error(`mirror node answered ${res.status}`);
-  const body = (await res.json()) as { messages?: unknown[] };
-  return reassemble(body.messages ?? []);
+  const messages: unknown[] = [];
+  let path: string | null = `/api/v1/topics/${CHAIN.topic}/messages?limit=100&order=asc`;
+  for (let page = 0; path && page < 20; page++) {
+    const res = await fetch(`${MIRROR}${path}`, { signal, next: { revalidate: 60 } } as RequestInit);
+    if (!res.ok) throw new Error(`mirror node answered ${res.status}`);
+    const body = (await res.json()) as TopicPage;
+    messages.push(...(body.messages ?? []));
+    path = body.links?.next ?? null;
+  }
+  return reassemble(messages);
 }
 
 export type Proof = { state: "ok" | "bad" | "unknown"; detail: string };
