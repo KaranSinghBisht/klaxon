@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Hanken_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import { Hanken_Grotesk, IBM_Plex_Mono, Newsreader } from "next/font/google";
 import "./globals.css";
 
-/* Bricolage carries the display: it has actual drawing in it, so a headline reads as lettering
-   rather than as a system font scaled up. Hanken sets the body at weight 500, which holds up on a
+/* A transitional serif carries the display. On a near-black ground its thin strokes read as
+   engraved rather than printed, and it stops a security page looking like a terminal with ambition. Hanken sets the body at weight 500, which holds up on a
    near-black ground where a 400 would go thin and grey. Plex Mono carries every hash, account id
    and transaction, because those are the parts a reader is meant to check rather than read. */
-const display = Bricolage_Grotesque({
+const display = Newsreader({
   subsets: ["latin"],
   variable: "--font-bricolage",
-  weight: ["600", "700", "800"],
+  weight: ["300", "400", "500", "600"],
+  style: ["normal", "italic"],
   display: "swap",
 });
 

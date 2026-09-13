@@ -39,9 +39,9 @@ export function Hero() {
         />
       </div>
 
-      <div className="veil-content mx-auto grid max-w-[1180px] grid-cols-1 gap-10 px-6 pt-20 pb-14 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-10 lg:pt-24">
+      <div className="veil-content mx-auto grid max-w-[1180px] grid-cols-1 gap-10 px-6 pt-20 pb-14 lg:grid-cols-[1.25fr_0.75fr] lg:items-center lg:gap-10 lg:pt-24">
         {/* The claim, as two states of one sentence: what they took, and what they got. */}
-        <h1 className="display relative text-[clamp(2.9rem,8.2vw,6.4rem)] font-extrabold uppercase">
+        <h1 className="display relative text-[clamp(2.4rem,6.4vw,5rem)] uppercase">
           <span className="ghost block">Take all of it</span>
           <span className="chrome relative z-10 -mt-[0.12em] block">You still</span>
           <span className="chrome relative z-10 -mt-[0.06em] block">can&apos;t use it</span>

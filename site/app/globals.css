@@ -73,9 +73,39 @@ body {
 /* Display type is set tight and dense — signage, not a blog post. */
 .display {
   font-family: var(--font-display);
-  letter-spacing: -0.035em;
-  line-height: 0.98;
+  font-weight: 400;
+  letter-spacing: -0.018em;
+  line-height: 1.04;
   text-wrap: balance;
+}
+
+/* A lead clause in full ink, the rest continuing in grey — one sentence carrying two weights of
+   attention, which is how an editorial deck opens. */
+.lead-dim {
+  color: var(--ink-3);
+}
+
+/* Hairline cells. The rule between them is the structure; the cell itself has no fill, so the page
+   reads as a ruled sheet rather than a stack of boxes. */
+.cell {
+  border-top: 1px solid var(--rule);
+}
+@media (min-width: 640px) {
+  .cell-l {
+    border-left: 1px solid var(--rule);
+  }
+}
+
+/* The hatch behind a mock: a drawing board, not a panel. */
+.hatch {
+  background-color: var(--ground-2);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(195, 201, 210, 0.045) 0px,
+    rgba(195, 201, 210, 0.045) 1px,
+    transparent 1px,
+    transparent 7px
+  );
 }
 .gutter {
   font-family: var(--font-mono);
