@@ -37,3 +37,6 @@ planning/
 # meant to be public, but these are stray working files, not the demo's committed copy.
 packages/cli/.klaxon/
 packages/cli/klaxon.policy.json
+
+# Working notes. Anything in here is for me, never for the repo.
+notes/
