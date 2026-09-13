@@ -25,3 +25,15 @@ site/node_modules/
 site/.next/
 site/.vercel/
 site/next-env.d.ts
+site/tsconfig.tsbuildinfo
+
+# Working material, not product. demo.md carries the key-ring password and the real
+# ntfy topic; planning/ carries specs, agent session state and simulated reviews.
+# Both were purged from history before the repo went public — keep them out.
+demo.md
+planning/
+
+# Local key-ring scratch from `klaxon init` runs against the CLI package. Share A is
+# meant to be public, but these are stray working files, not the demo's committed copy.
+packages/cli/.klaxon/
+packages/cli/klaxon.policy.json
