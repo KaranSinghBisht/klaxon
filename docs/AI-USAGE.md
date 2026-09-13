@@ -7,14 +7,16 @@ ETHGlobal asks entrants to document where and how AI tools were used. This proje
 **Research and selection (Sept 7–8):** Claude Code researched sponsor tracks, prior art (Ledger's
 June 2026 N3XT hackathon, ERC-7715 delegation, npm trusted publishing), the 2026
 credential-compromise data cited in `docs/SOURCES.md`, and Google's OAuth token model. Six candidate
-projects were generated and ranked; the chosen one was rewritten three times (v1 → v2 → v3, in
-`planning/`) as adversarial reviews found holes.
+projects were generated and ranked; the chosen one was rewritten three times (v1 → v2 → v3) as
+adversarial reviews found holes.
 
-**Simulated adversarial review:** nine reviews in `planning/simulated-review/` were produced by
+**Simulated adversarial review:** nine reviews were produced by
 Claude Code subagents playing named personas (a security engineer, a Ledger panelist, an ETHGlobal
 screener, a Hedera panelist, the first user) plus feasibility/compliance/coherence passes, and one
 by Codex. **They are simulations, not real judge feedback.** Their findings — most importantly that
 v2's central invariant did not hold — drove the v3 architecture.
+
+Those reviews, the three specs and the build plans were working notes and are **not published**: they contained a live credential and session state, so they were removed from this repository and from its history before it was made public.
 
 **Implementation planning:** the build plan and its two appendices were produced by Claude Code
 agents that checked every API against published packages and, where an endpoint was reachable

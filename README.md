@@ -366,8 +366,9 @@ consumer and the gate rooted in a hardware wallet. Everything below was checked 
 Claude Code as the primary engineering assistant under human direction, with one cold review from
 OpenAI Codex; the full account, including what has *not* happened yet, is in
 [`docs/AI-USAGE.md`](docs/AI-USAGE.md). Commit history is unsquashed and every commit names the model
-that wrote it. The nine adversarial reviews in `planning/simulated-review/` are **simulations by AI
-personas, not real judge feedback**.
+that wrote it. Nine adversarial reviews were run during design by AI personas, not by anyone from a
+sponsor or from ETHGlobal; they are **simulations, not real judge feedback**, and are kept out of
+this repository as working notes.
 
 ## Repository
 
@@ -380,6 +381,5 @@ personas, not real judge feedback**.
 | `packages/action` | the Node 24 GitHub Action that pays and consumes the release |
 | `packages/contracts` | `KlaxonRegistry` (Foundry) + the ERC-7730 descriptor |
 | `docs/` | claim · threat model · protocol · payment flow · operations · migration · Ledger feedback · AI usage · sources |
-| `planning/` | spec v1–v3, build plan and decision register, nine adversarial reviews |
 
 Built for ETHOnline 2026. Apache-2.0.
