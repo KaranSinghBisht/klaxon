@@ -34,7 +34,7 @@ function Card({ entry, seeded }: { entry: Entry; seeded?: Proof }) {
 
   if (!b) {
     return (
-      <article className="rounded-xl border border-rule bg-panel p-5">
+      <article className="rounded-xl border border-rule bg-panel/40 p-5">
         <p className="gutter">unreadable · sequence {entry.seqs.join(", ")}</p>
       </article>
     );
@@ -42,12 +42,6 @@ function Card({ entry, seeded }: { entry: Entry; seeded?: Proof }) {
 
   const kind = b.type ?? "unknown";
   const C = b.C ?? {};
-  const accent =
-    kind === "released"
-      ? "border-l-good"
-      : kind === "refused"
-        ? "border-l-signal"
-        : "border-l-steel-dim";
   const badge =
     kind === "released"
       ? "border-good-line bg-good-soft text-good"
@@ -61,7 +55,7 @@ function Card({ entry, seeded }: { entry: Entry; seeded?: Proof }) {
     .slice(0, 19);
 
   return (
-    <article className={`overflow-hidden rounded-xl border border-rule border-l-2 ${accent} bg-panel`}>
+    <article className="overflow-hidden rounded-xl border border-rule bg-panel/40">
       <div className="flex flex-wrap items-center gap-3 px-5 pt-4">
         <span className={`gutter border px-2 py-0.5 ${badge}`}>{kind}</span>
         <h3 className="text-[15.5px] font-semibold">

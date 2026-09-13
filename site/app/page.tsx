@@ -3,6 +3,7 @@ import { Evidence } from "@/components/Evidence";
 import { Hero } from "@/components/Hero";
 import { How } from "@/components/How";
 import { Problem } from "@/components/Problem";
+import { Protocol } from "@/components/Protocol";
 
 export default function Home() {
   return (
@@ -10,6 +11,7 @@ export default function Home() {
       <Nav />
       <Hero />
       <Problem />
+      <Protocol />
       <How />
       <Evidence />
       <Stack />

@@ -11,146 +11,149 @@ import {
   short,
 } from "@/lib/facts";
 
-function Line({ k, children }: { k: string; children: React.ReactNode }) {
+const link = "text-ink underline decoration-steel-dim/50 underline-offset-2 hover:text-steel";
+
+function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5 border-t border-rule-soft py-2.5 sm:flex-row sm:gap-4">
-      <span className="w-[152px] shrink-0 font-mono text-[11px] text-ink-3 uppercase">{k}</span>
-      <span className="font-mono text-[12.5px] break-all text-ink">{children}</span>
+    <div className="flex flex-col gap-0.5 border-t border-rule-soft py-2 sm:flex-row sm:gap-3">
+      <span className="w-[104px] shrink-0 font-mono text-[10px] tracking-[0.07em] text-ink-3 uppercase">
+        {k}
+      </span>
+      <span className="font-mono text-[11.5px] break-all text-ink-2">{children}</span>
     </div>
   );
 }
 
-const link = "text-steel underline decoration-steel-dim/50 underline-offset-2 hover:brightness-125";
+type FigProps = {
+  fig: string;
+  verdict: string;
+  verdictClass: string;
+  head: string;
+  body: string;
+  children: React.ReactNode;
+};
+
+function Fig({ fig, verdict, verdictClass, head, body, children }: FigProps) {
+  return (
+    <article className="flex flex-col">
+      <p className="gutter">{fig}</p>
+      {/* The panel carries the data; the card carries no colour, so the verdict chip is the only
+          thing that signals which of the three this is. */}
+      <div className="mt-3 flex-1 rounded-xl border border-rule bg-panel/40 p-5">{children}</div>
+      <div className="mt-5">
+        <p className="flex flex-wrap items-center gap-2.5">
+          <span className={`gutter border px-2 py-0.5 ${verdictClass}`}>{verdict}</span>
+          <span className="text-[15.5px] font-semibold text-ink">{head}</span>
+        </p>
+        <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-2">{body}</p>
+      </div>
+    </article>
+  );
+}
 
 export function Evidence() {
   return (
-    <section id="evidence" className="border-b border-rule">
-      <div className="mx-auto max-w-[1040px] px-6 py-20 sm:py-24">
+    <section id="evidence" className="border-b border-rule bg-ground-2">
+      <div className="mx-auto max-w-[1180px] px-6 py-20 sm:py-28">
         <p className="gutter">evidence</p>
-        <h2 className="display mt-4 max-w-[18ch] text-[clamp(2rem,4.6vw,3.3rem)] font-bold">
-          Three runs. Same worm. Same secret.
+        <h2 className="display mt-6 max-w-[30ch] text-[clamp(1.9rem,4vw,3rem)]">
+          Three runs, one worm, one secret.
+          <span className="lead-dim">
+            {" "}
+            Each happened on a hosted GitHub runner, paid a real Hedera transaction, and left a
+            record anyone can read. Click any of it.
+          </span>
         </h2>
-        <p className="mt-6 max-w-[62ch] text-[16.5px] leading-relaxed text-ink-2">
-          Every run below happened on a hosted GitHub runner, paid a real Hedera transaction, and
-          left a record anyone can read. Click any of it.
-        </p>
 
-        <div className="mt-12 space-y-4">
-          {/* 1 — the baseline */}
-          <article className="overflow-hidden rounded-xl border border-rule border-l-2 border-l-signal bg-panel">
-            <div className="flex flex-wrap items-center gap-3 px-6 pt-5">
-              <span className="gutter border border-signal-line bg-signal-soft px-2 py-0.5 text-signal">
-                stolen
-              </span>
-              <h3 className="text-[17px] font-semibold">An ordinary pipeline, an ordinary secret</h3>
-            </div>
-            <p className="px-6 pt-2.5 text-[14.5px] leading-relaxed text-ink-2">
-              The deploy key is a normal GitHub Actions secret, so it sits in the environment of
-              every step — including the one where a compromised dependency&apos;s install script
-              runs. The worm read {STOLEN.varsRead} variables and found it in seconds.
-            </p>
-            <div className="px-6 pt-4 pb-5">
-              <Line k="workflow run">
-                <a className={link} href={runUrl(STOLEN.run)}>
-                  {STOLEN.run}
-                </a>
-              </Line>
-              <Line k="treasury it owns">
-                <a className={link} href={etherscan(STOLEN.treasury)}>
-                  {short(STOLEN.treasury, 14, 8)}
-                </a>
-              </Line>
-              <Line k="controlled by">{short(STOLEN.owner, 14, 8)} — now a stolen key</Line>
-            </div>
-          </article>
+        <div className="mt-14 grid gap-10 lg:grid-cols-3 lg:gap-8">
+          <Fig
+            fig="fig 0.1 — the baseline"
+            verdict="stolen"
+            verdictClass="border-signal-line bg-signal-soft text-signal"
+            head="An ordinary pipeline"
+            body="The deploy key is a normal Actions secret, so it sits in the environment of every step — including the one where a compromised dependency's install script runs."
+          >
+            <Row k="run">
+              <a className={link} href={runUrl(STOLEN.run)}>
+                {STOLEN.run}
+              </a>
+            </Row>
+            <Row k="treasury">
+              <a className={link} href={etherscan(STOLEN.treasury)}>
+                {short(STOLEN.treasury, 12, 6)}
+              </a>
+            </Row>
+            <Row k="owner">{short(STOLEN.owner, 12, 6)}</Row>
+            <Row k="outcome">
+              <span className="text-signal">key exfiltrated in seconds</span>
+            </Row>
+          </Fig>
 
-          {/* 2 — the protected release */}
-          <article className="overflow-hidden rounded-xl border border-rule border-l-2 border-l-good bg-panel">
-            <div className="flex flex-wrap items-center gap-3 px-6 pt-5">
-              <span className="gutter border border-good-line bg-good-soft px-2 py-0.5 text-good">
-                released
-              </span>
-              <h3 className="text-[17px] font-semibold">The same pipeline, protected</h3>
-            </div>
-            <p className="px-6 pt-2.5 text-[14.5px] leading-relaxed text-ink-2">
-              Half the key is committed to the repository in public. The deploy job pays, proves who
-              it is, and is served — and the plaintext exists only inside that one step. The worm is
-              still there. It reads the environment and finds nothing worth having.
-            </p>
-            <div className="px-6 pt-4 pb-5">
-              <Line k="workflow run">
-                <a className={link} href={runUrl(RELEASED.run)}>
-                  {RELEASED.run}
-                </a>
-              </Line>
-              <Line k="commitment">{short(RELEASED.commitment, 28, 10)}</Line>
-              <Line k="hedera payment">
-                <a className={link} href={hashscanTx(RELEASED.payTx)}>
-                  {RELEASED.payTx}
-                </a>{" "}
-                <span className="text-good">— memo equals the commitment</span>
-              </Line>
-              <Line k="audit record">
-                <a className={link} href={hashscanTopic(CHAIN.topic)}>
-                  topic {CHAIN.topic}
-                </a>{" "}
-                · sequence #{RELEASED.hcs}
-              </Line>
-              <Line k="treasury deployed">
-                <a className={link} href={etherscan(RELEASED.treasury)}>
-                  {short(RELEASED.treasury, 14, 8)}
-                </a>{" "}
-                — owned by {short(PROTECTED_OWNER, 10, 6)}, a key that never leaked
-              </Line>
-            </div>
-          </article>
+          <Fig
+            fig="fig 0.2 — protected"
+            verdict="released"
+            verdictClass="border-good-line bg-good-soft text-good"
+            head="The same pipeline, split"
+            body="Half the key is committed in public. The deploy job pays, proves who it is, and is served — and the plaintext exists only inside that one step. The worm is still there, and finds nothing."
+          >
+            <Row k="run">
+              <a className={link} href={runUrl(RELEASED.run)}>
+                {RELEASED.run}
+              </a>
+            </Row>
+            <Row k="commitment">{short(RELEASED.commitment, 18, 6)}</Row>
+            <Row k="payment">
+              <a className={link} href={hashscanTx(RELEASED.payTx)}>
+                {short(RELEASED.payTx, 20, 8)}
+              </a>
+            </Row>
+            <Row k="binding">
+              <span className="text-good">memo ≡ commitment</span>
+            </Row>
+            <Row k="record">
+              <a className={link} href={hashscanTopic(CHAIN.topic)}>
+                seq #{RELEASED.hcs}
+              </a>
+            </Row>
+            <Row k="owner">{short(PROTECTED_OWNER, 12, 6)} — never leaked</Row>
+          </Fig>
 
-          {/* 3 — the refusal */}
-          <article className="overflow-hidden rounded-xl border border-rule border-l-2 border-l-signal bg-panel">
-            <div className="flex flex-wrap items-center gap-3 px-6 pt-5">
-              <span className="gutter border border-signal-line bg-signal-soft px-2 py-0.5 text-signal">
-                refused
-              </span>
-              <h3 className="text-[17px] font-semibold">
-                The attacker holds everything and runs it anyway
-              </h3>
-            </div>
-            <p className="px-6 pt-2.5 text-[14.5px] leading-relaxed text-ink-2">
-              The Key Ring credential, the payment key, the encrypted share, and a copy of the real
-              release step — replayed from a job they control. The payment settles. Then the witness
-              reads GitHub&apos;s own token, sees a job the policy never named, refuses, freezes the
-              project, and the owner&apos;s phone goes off.
-            </p>
-            <div className="px-6 pt-4 pb-5">
-              <Line k="workflow run">
-                <a className={link} href={runUrl(REFUSED.run)}>
-                  {REFUSED.run}
-                </a>
-              </Line>
-              <Line k="paid anyway">
-                <a className={link} href={hashscanTx(REFUSED.payTx)}>
-                  {REFUSED.payTx}
-                </a>{" "}
-                — {CHAIN.priceHbar} ℏ, settled
-              </Line>
-              <Line k="refused at">
-                <span className="text-signal">
-                  check {REFUSED.check} — {REFUSED.reason}
-                </span>
-              </Line>
-              <Line k="on the record">
-                <a className={link} href={hashscanTopic(CHAIN.topic)}>
-                  sequence #{REFUSED.hcs}
-                </a>{" "}
-                — carrying the attacker&apos;s own GitHub token
-              </Line>
-            </div>
-          </article>
+          <Fig
+            fig="fig 0.3 — the attempt"
+            verdict="refused"
+            verdictClass="border-signal-line bg-signal-soft text-signal"
+            head="Everything stolen, run anyway"
+            body="The Key Ring credential, the payment key, the encrypted share and a copy of the release step — replayed from a job they control. The payment settles. The witness reads GitHub's own token and refuses."
+          >
+            <Row k="run">
+              <a className={link} href={runUrl(REFUSED.run)}>
+                {REFUSED.run}
+              </a>
+            </Row>
+            <Row k="commitment">{short(REFUSED.commitment, 18, 6)}</Row>
+            <Row k="paid">
+              <a className={link} href={hashscanTx(REFUSED.payTx)}>
+                {CHAIN.priceHbar} ℏ settled
+              </a>
+            </Row>
+            <Row k="refused">
+              <span className="text-signal">check {REFUSED.check} — no environment</span>
+            </Row>
+            <Row k="record">
+              <a className={link} href={hashscanTopic(CHAIN.topic)}>
+                seq #{REFUSED.hcs}
+              </a>{" "}
+              — carries their own token
+            </Row>
+            <Row k="then">
+              <span className="text-signal">project revoked</span>
+            </Row>
+          </Fig>
         </div>
 
-        <p className="mt-8 text-[14px] leading-relaxed text-ink-3">
+        <p className="mt-12 max-w-[70ch] text-[13.5px] leading-relaxed text-ink-3">
           The two treasuries are controlled by different keys on purpose. If they shared one, the
-          protected balance staying untouched would prove nothing.
+          protected balance staying untouched would prove nothing at all.
         </p>
       </div>
     </section>

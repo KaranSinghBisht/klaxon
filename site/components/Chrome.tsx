@@ -1,19 +1,20 @@
 import { CHAIN, COST, DEMO_REPO, REPO, WITNESS } from "@/lib/facts";
+import { Mark } from "./Mark";
 
 export function Nav() {
   return (
     <nav className="sticky top-0 z-50 border-b border-rule bg-ground/85 backdrop-blur">
       <div className="mx-auto flex max-w-[1040px] items-center gap-5 px-6 py-3.5">
         <a href="#top" className="flex items-center gap-2.5">
-          <span aria-hidden className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-signal opacity-70" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-signal" />
-          </span>
+          <Mark className="h-[18px] w-[18px] text-ink" />
           <span className="text-[15px] font-bold tracking-[0.14em]">KLAXON</span>
         </a>
         <div className="ml-auto flex items-center gap-5 text-[13.5px] text-ink-2">
           <a href="#problem" className="hidden hover:text-ink sm:inline">
             Problem
+          </a>
+          <a href="#protocol" className="hidden hover:text-ink sm:inline">
+            Protocol
           </a>
           <a href="#how" className="hidden hover:text-ink sm:inline">
             How
